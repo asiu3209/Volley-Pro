@@ -26,7 +26,6 @@ const VolleyProDashboard = () => {
 
   const navigationItems = [
     { id: "dashboard", label: "Dashboard", icon: Home },
-    { id: "videos", label: "My Videos", icon: Video },
     { id: "stats", label: "Statistics", icon: BarChart3 },
     { id: "training", label: "Training", icon: Target },
     { id: "analysis", label: "Analysis", icon: TrendingUp },

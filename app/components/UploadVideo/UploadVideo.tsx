@@ -41,7 +41,7 @@ export default function UploadVideo({
           onChange={(e) => setFile(e.target.files?.[0] || null)}
           className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-800 p-2 text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500"
         />
-        
+
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onClose}
