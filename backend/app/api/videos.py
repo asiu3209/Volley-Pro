@@ -1,11 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
+import shutil
+import os
 from pydantic import BaseModel
 import uuid
 from sqlalchemy.orm import Session
 from app.services.s3 import generate_presigned_upload_url
 from app.db.session import SessionLocal
 from app.models.video import Video
-
+from app.services.video_processing import extract_frames
 # Create router
 
 router = APIRouter()
@@ -50,3 +52,24 @@ def save_video(video: VideoCreate):
     db.close()        # Close session
 
     return db_video
+
+@router.post("/upload")
+def upload_video(file: UploadFile = File(...)):
+    os.makedirs("uploads", exist_ok=True)
+    video_path = f"uploads/{file.filename}"
+    #Save video to disk
+    with open(video_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    #Process Video
+    frames= extract_frames(
+        video_path=video_path,
+        output_dir="frames",
+        every_n_frames=5
+    )
+
+    return{
+        "video": file.filename,
+        "total_frames_extracted": len(frames),
+        "frames": frames[:5] #First 5 Frames
+    }

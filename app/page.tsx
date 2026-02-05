@@ -23,6 +23,8 @@ const VolleyProDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [open, setOpen] = useState(false);
+  const [frames, setFrames] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const navigationItems = [
     { id: "dashboard", label: "Dashboard", icon: Home },
@@ -86,9 +88,22 @@ const VolleyProDashboard = () => {
     },
   ];
 
-  function handleUpload(file: File) {
-    console.log("Uploaded File: " + file);
-    //Submit to backend for analysis
+  async function handleUpload(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setLoading(true);
+    setFrames([]); // clear old frames
+
+    const res = await fetch("http://localhost:8000/videos/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+
+    setFrames(data.frames);
+    setLoading(false);
   }
 
   return (
@@ -176,6 +191,35 @@ const VolleyProDashboard = () => {
         {/* Dashboard Content */}
         {activeTab === "dashboard" && (
           <div className="p-6 bg-gray-900">
+            {/* Video Processing Status */}
+            {loading && (
+              <p className="text-gray-300 mb-4">Processing video...</p>
+            )}
+
+            {/* Extracted Frames Preview */}
+            {frames.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-gray-100 mb-4">
+                  Extracted Frames
+                </h3>
+
+                <div className="flex flex-wrap gap-4">
+                  {frames.map((frame, i) => (
+                    <div key={i} className="bg-gray-800 p-3 rounded-xl">
+                      <img
+                        src={`http://localhost:8000/${frame.path}`}
+                        width={200}
+                        className="rounded-lg"
+                      />
+                      <p className="text-sm text-gray-300 mt-2">
+                        t = {frame.timestamp}s
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="bg-gradient bg-teal-500 text-white p-6 rounded-2xl shadow-lg">
@@ -299,8 +343,8 @@ const VolleyProDashboard = () => {
                             tip.priority === "high"
                               ? "bg-red-100 text-red-700"
                               : tip.priority === "medium"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-green-100 text-green-700"
+                                ? "bg-yellow-100 text-yellow-700"
+                                : "bg-green-100 text-green-700"
                           }`}
                         >
                           {tip.priority}
