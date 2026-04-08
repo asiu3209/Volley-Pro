@@ -1,22 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Home,
-  Video,
-  BarChart3,
-  Target,
-  Trophy,
-  Upload,
-  Play,
-  TrendingUp,
-  Award,
-  Zap,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-} from "lucide-react";
 import UploadVideo from "./components/UploadVideo/UploadVideo";
 
 const VolleyProDashboard = () => {
@@ -27,10 +11,10 @@ const VolleyProDashboard = () => {
   const [loading, setLoading] = useState(false);
 
   const navigationItems = [
-    { id: "dashboard", label: "Dashboard", icon: Home },
-    { id: "stats", label: "Statistics", icon: BarChart3 },
-    { id: "training", label: "Training", icon: Target },
-    { id: "analysis", label: "Analysis", icon: TrendingUp },
+    { id: "dashboard", label: "Dashboard" },
+    { id: "stats", label: "Statistics" },
+    { id: "training", label: "Training" },
+    { id: "analysis", label: "Analysis" },
   ];
 
   const recentVideos = [
@@ -121,14 +105,11 @@ const VolleyProDashboard = () => {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-white/10 rounded-lg"
-          >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          ></button>
         </div>
 
         <nav className="flex-1 px-3">
           {navigationItems.map((item) => {
-            const Icon = item.icon;
             return (
               <button
                 key={item.id}
@@ -139,7 +120,6 @@ const VolleyProDashboard = () => {
                     : "hover:bg-white/10"
                 }`}
               >
-                <Icon size={20} />
                 {sidebarOpen && (
                   <span className="font-medium">{item.label}</span>
                 )}
@@ -150,11 +130,9 @@ const VolleyProDashboard = () => {
 
         <div className="p-3 border-t border-white/10">
           <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-white/10">
-            <Settings size={20} />
             {sidebarOpen && <span>Settings</span>}
           </button>
           <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-white/10">
-            <LogOut size={20} />
             {sidebarOpen && <span>Logout</span>}
           </button>
         </div>
@@ -224,10 +202,7 @@ const VolleyProDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="bg-gradient bg-teal-500 text-white p-6 rounded-2xl shadow-lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Video size={24} />
-                  </div>
-                  <TrendingUp className="text-white/60" />
+                  <div className="p-3 bg-white/20 rounded-xl"></div>
                 </div>
                 <div className="text-3xl font-bold mb-1">24</div>
                 <div className="text-blue-100">Videos Analyzed</div>
@@ -235,10 +210,7 @@ const VolleyProDashboard = () => {
 
               <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Trophy size={24} />
-                  </div>
-                  <TrendingUp className="text-white/60" />
+                  <div className="p-3 bg-white/20 rounded-xl"></div>
                 </div>
                 <div className="text-3xl font-bold mb-1">81.5%</div>
                 <div className="text-green-100">Overall Success Rate</div>
@@ -246,10 +218,7 @@ const VolleyProDashboard = () => {
 
               <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-2xl shadow-lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Zap size={24} />
-                  </div>
-                  <TrendingUp className="text-white/60" />
+                  <div className="p-3 bg-white/20 rounded-xl"></div>
                 </div>
                 <div className="text-3xl font-bold mb-1">12</div>
                 <div className="text-purple-100">Training Sessions</div>
@@ -257,10 +226,7 @@ const VolleyProDashboard = () => {
 
               <div className="bg-gradient bg-sky-600 text-white p-6 rounded-2xl shadow-lg">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <Award size={24} />
-                  </div>
-                  <TrendingUp className="text-white/60" />
+                  <div className="p-3 bg-white/20 rounded-xl"></div>
                 </div>
                 <div className="text-3xl font-bold mb-1">8.2</div>
                 <div className="text-orange-100">Average Score</div>
@@ -286,9 +252,7 @@ const VolleyProDashboard = () => {
                       className="border-l-4 border-orange-500 flex items-center justify-between p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl hover:bg-gray-600 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl flex items-center justify-center">
-                          <Play className="text-white" size={24} />
-                        </div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl flex items-center justify-center"></div>
                         <div>
                           <h4 className="font-semibold text-gray-100">
                             {video.title}
@@ -407,9 +371,7 @@ const VolleyProDashboard = () => {
                   key={video.id}
                   className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all"
                 >
-                  <div className="h-48 bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center">
-                    <Play className="text-white" size={48} />
-                  </div>
+                  <div className="h-48 bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center"></div>
                   <div className="p-4">
                     <h4 className="font-bold text-gray-900 mb-2">
                       {video.title}

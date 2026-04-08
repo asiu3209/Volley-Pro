@@ -1,0 +1,13 @@
+#Runs localstack on docker
+docker run --rm -it -p 4566:4566 localstack/localstack
+
+#Start Virtual Environment
+source venv/Scripts/activate
+
+#Run Fast API
+uvicorn app.main:app --reload
+
+#Run docker
+docker run --name volleyPro -e POSTGRES_PASSWORD=password -p 5431:5432 -d postgres
+#PostGresPass
+password

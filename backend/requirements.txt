@@ -7,3 +7,4 @@ python-multipart
 boto3
 python-dotenv
 opencv-python
+psycopg2-binary

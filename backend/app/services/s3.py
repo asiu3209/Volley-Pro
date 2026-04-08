@@ -1,30 +1,51 @@
+# backend/app/services/s3.py
 import boto3
+from botocore.exceptions import ClientError
 from app.core.config import (
     AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY,
     AWS_BUCKET_NAME,
     AWS_REGION,
-    AWS_ENDPOINT_URL,
+    USE_LOCALSTACK,
+    LOCALSTACK_ENDPOINT
 )
 
-s3 = boto3.client(
-    "s3",
-    aws_access_key_id = AWS_ACCESS_KEY_ID,
-    aws_secret_access_key = AWS_SECRET_ACCESS_KEY,
-    region_name = AWS_REGION,
-    endpoint_url = AWS_ENDPOINT_URL,
-)
+# Connect to S3
+def get_s3_client():
+    if USE_LOCALSTACK:
+        return boto3.client(
+            "s3",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            region_name=AWS_REGION,
+            endpoint_url=LOCALSTACK_ENDPOINT
+        )
+    return boto3.client(
+        "s3",
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=AWS_REGION
+    )
 
-s3.create_bucket(Bucket=AWS_BUCKET_NAME) #Make bucket or check if it already exists in localstack
+s3 = get_s3_client()
 
-# Generate a presigned URL to allow frontend to upload video directly
-def generate_presigned_upload_url(key: str):
+# Function to ensure bucket exists
+def ensure_bucket():
+    if not AWS_BUCKET_NAME:
+        raise ValueError("AWS_BUCKET_NAME is not defined!")
+    try:
+        s3.head_bucket(Bucket=AWS_BUCKET_NAME)
+    except ClientError:
+        s3.create_bucket(Bucket=AWS_BUCKET_NAME)
+
+# Function to generate presigned URL
+def generate_presigned_upload_url(key: str, expiration: int = 3600):
+    if not key:
+        raise ValueError("Key must be provided")
+    # Ensure bucket exists when generating URL
+    ensure_bucket()
     return s3.generate_presigned_url(
-        ClientMethod="put_object",
-        Params={
-            "Bucket":AWS_BUCKET_NAME,
-            "Key": key,
-            "ContentType" : "video/mp4",
-        },
-        ExpiresIn=3600,
+        "put_object",
+        Params={"Bucket": AWS_BUCKET_NAME, "Key": key},
+        ExpiresIn=expiration
     )
