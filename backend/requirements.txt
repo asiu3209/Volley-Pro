@@ -6,4 +6,4 @@ pydantic
 python-multipart
 boto3
 python-dotenv
-cv2
+opencv-python
