@@ -79,7 +79,7 @@ const VolleyProDashboard = () => {
     setLoading(true);
     setFrames([]); // clear old frames
 
-    const res = await fetch("http://localhost:8000/videos/upload", {
+    const res = await fetch("/api/uploadVideo", {
       method: "POST",
       body: formData,
     });
@@ -88,6 +88,7 @@ const VolleyProDashboard = () => {
 
     setFrames(data.frames);
     setLoading(false);
+    console.log("upload had been handled in main");
   }
 
   return (
@@ -175,7 +176,7 @@ const VolleyProDashboard = () => {
             )}
 
             {/* Extracted Frames Preview */}
-            {frames.length > 0 && (
+            {frames?.length > 0 && (
               <div className="mb-8">
                 <h3 className="text-xl font-bold text-gray-100 mb-4">
                   Extracted Frames
