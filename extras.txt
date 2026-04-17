@@ -2,6 +2,9 @@
 docker run --rm -it -p 4566:4566 localstack/localstack
 
 #Start Virtual Environment
+python -m venv venv
+
+source venv/bin/activate   # Mac/Linux
 source venv/Scripts/activate
 
 #Run Fast API

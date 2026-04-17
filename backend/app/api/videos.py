@@ -52,7 +52,7 @@ def save_video(video: VideoCreate):
     db.close()        # Close session
 
     return db_video
-
+#Route for uploaded video and should be called by Next JS Route
 @router.post("/upload")
 def upload_video(file: UploadFile = File(...)):
     os.makedirs("uploads", exist_ok=True)
@@ -67,7 +67,7 @@ def upload_video(file: UploadFile = File(...)):
         output_dir="frames",
         every_n_frames=5
     )
-
+    print("Video Upload complete inside python api")
     return{
         "video": file.filename,
         "total_frames_extracted": len(frames),
