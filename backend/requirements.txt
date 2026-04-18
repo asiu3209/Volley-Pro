@@ -6,6 +6,6 @@ pydantic
 python-multipart
 boto3
 python-dotenv
-opencv-python
 psycopg2-binary
-opencv-python
+mediapipe
+opencv-contrib-python

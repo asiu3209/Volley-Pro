@@ -1,28 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const BACKEND_URL = process.env.INTERNAL_API_URL ?? "http://localhost:8000";
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file");
-    //File error checking
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Invalid file" }, { status: 400 });
+    const file = formData.get("file") as File;
+
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
-    //Ensures proper type of file data is being sent to backend
-    const forwardData = new FormData();
-    forwardData.append("file", file);
-    //Fast API port and /videos prefix from main.py
-    //upload is posted router route
-    const response = await fetch("http://backend:8000/videos/upload", {
+
+    // Convert file to buffer
+    const buffer = await file.arrayBuffer();
+
+    // Create new FormData for backend
+    const backendFormData = new FormData();
+    backendFormData.append(
+      "file",
+      new Blob([buffer], { type: file.type }),
+      file.name,
+    );
+
+    const response = await fetch(`${BACKEND_URL}/videos/upload`, {
       method: "POST",
-      body: forwardData,
+      body: backendFormData,
     });
 
     const data = await response.json();
-    console.log("Upload has been complete in NextJs API route");
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.detail ?? "Upload failed" },
+        { status: response.status },
+      );
+    }
     return NextResponse.json(data);
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+  } catch (err) {
+    console.error("Upload error:", err);
+    return NextResponse.json(
+      { error: "Upload request failed" },
+      { status: 500 },
+    );
   }
 }
