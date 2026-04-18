@@ -10,5 +10,6 @@ app = FastAPI(title="Volley Pro API")
 app.include_router(videosRouter, prefix="/videos")
 #app.include_router(clips.router, prefix="/clips")
 
-#Serve frames as static images/files
+#Adds saved frames into public URL so frontend can access the saved frames
+
 app.mount("/frames", StaticFiles(directory="frames"), name="frames")

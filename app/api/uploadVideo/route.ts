@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     forwardData.append("file", file);
     //Fast API port and /videos prefix from main.py
     //upload is posted router route
-    const response = await fetch("http://localhost:8000/videos/upload", {
+    const response = await fetch("http://backend:8000/videos/upload", {
       method: "POST",
       body: forwardData,
     });

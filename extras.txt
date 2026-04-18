@@ -6,11 +6,16 @@ python -m venv venv
 
 source venv/bin/activate   # Mac/Linux
 source venv/Scripts/activate
+pip install -r requirements.txt 
 
 #Run Fast API
 uvicorn app.main:app --reload
+npx kill-port 8000
 
 #Run docker
 docker run --name volleyPro -e POSTGRES_PASSWORD=password -p 5431:5432 -d postgres
 #PostGresPass
 password
+
+docker-compose up --build
+docker-compose up
