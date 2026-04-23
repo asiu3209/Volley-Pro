@@ -1,4 +1,0 @@
-{
-  "python-envs.defaultEnvManager": "ms-python.python:system",
-  "js/ts.tsdk.path": "node_modules\\typescript\\lib"
-}
