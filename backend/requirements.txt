@@ -12,3 +12,4 @@ google-generativeai
 psycopg2-binary
 mediapipe==0.10.21
 opencv-contrib-python
+genai

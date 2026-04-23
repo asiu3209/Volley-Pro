@@ -6,7 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from app.api.videos import router as videosRouter
 from app.api.analysis import router as analysisRouter
 
-from app.api.videos import router as videos_router
+#from app.api.videos import router as videos_router
+
+app = FastAPI()
 
 #Register Routes to be called from frontend
 app.include_router(videosRouter, prefix="/videos")
@@ -29,7 +31,7 @@ app.add_middleware(
 )
 
 # ── Routes ────────────────────────────────────────────────────────────────────
-app.include_router(videos_router, prefix="/videos")
+app.include_router(videosRouter, prefix="/videos")
 
 # ── Static files (frames + analysis subdirectories) ───────────────────────────
 FRAMES_DIR = os.environ.get("FRAMES_DIR", "frames")
