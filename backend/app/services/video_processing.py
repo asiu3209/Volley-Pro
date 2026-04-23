@@ -2,9 +2,10 @@ import os
 import shutil
 import cv2
 import numpy as np
+import mediapipe as mp
+
 
 try:
-    import mediapipe as mp
     _MP_AVAILABLE = True
 except ImportError:
     _MP_AVAILABLE = False
@@ -279,7 +280,7 @@ def extract_frames_for_player(
         metadata.append({
             "frame_index":  best_raw_idx,
             "timestamp":    round(best_raw_idx / fps, 2),
-            "path":         f"/{public_folder}/{fname}",
+            "path":         f"{public_folder}/{fname}",
             "motion_score": round(float(combined[pi]), 4),
             "tracked_bbox": best_bbox,
         })
@@ -287,19 +288,3 @@ def extract_frames_for_player(
 
     metadata.sort(key=lambda m: m["timestamp"])
     return metadata
-
-
-# ── Legacy wrapper (keeps the old API working) ────────────────────────────────
-def extract_frames(
-    video_path: str,
-    output_dir: str,
-    every_n_frames: int = 5,
-) -> list[dict]:
-    """Backwards-compatible shim — no player bbox, full-frame analysis."""
-    return extract_frames_for_player(
-        video_path=video_path,
-        output_dir=output_dir,
-        player_bbox=None,
-        max_frames=8,
-        stride=every_n_frames,
-    )

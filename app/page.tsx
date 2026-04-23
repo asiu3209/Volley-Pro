@@ -28,7 +28,7 @@ interface Rect {
 }
 
 function frameProxyUrl(path: string): string {
-  return `/frames/${path}`;
+  return `http://localhost:8000/frames/${path}`;
 }
 
 export default function VolleyProDashboard() {
@@ -159,8 +159,10 @@ export default function VolleyProDashboard() {
         return;
       }
 
-      setAppState({ stage: "done", frames: data.frames ?? [] });
-      console.log("TESTING44");
+      setAppState({
+        stage: "done",
+        frames: data.frames,
+      });
     } catch {
       setAppState({
         stage: "error",
