@@ -3,12 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "dev": "next dev --webpack -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
-    "frontend": "next",
-    "backend": "uvicorn backend.app.main:app --reload"
+    "lint": "eslint"
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",

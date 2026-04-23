@@ -233,12 +233,6 @@ Contributions are welcome! Please follow these steps:
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## Roadmap
-
-- Q2 2026: MVP with basic form analysis
-- Q3 2026: Expand professional video library
-- Q4 2026: Mobile app release
-- 2027: Advanced multi-player analysis
 
 ## License
 

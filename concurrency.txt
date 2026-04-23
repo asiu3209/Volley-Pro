@@ -14,7 +14,7 @@ npm install concurrently --save-dev
 "scripts": {
   "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
   "frontend": "vite",
-  "backend": "cd backend && uvicorn main:app --reload"
+  "backend": "uvicorn backend.app.main:app --reload"
 }
 
 # 4. Install FastAPI + Uvicorn if needed

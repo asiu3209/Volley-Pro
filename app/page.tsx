@@ -2,13 +2,40 @@
 
 import { useState } from "react";
 import UploadVideo from "./components/UploadVideo/UploadVideo";
+import PlayerSelector from "./components/Playerselector";
 
-const VolleyProDashboard = () => {
+type AppState =
+  | { stage: "idle" }
+  | { stage: "uploading" }
+  | { stage: "selecting"; previewFrame: string; videoFilename: string }
+  | { stage: "analyzing" }
+  | { stage: "done"; frames: FrameMeta[] }
+  | { stage: "error"; message: string };
+
+interface FrameMeta {
+  frame_index: number;
+  timestamp: number;
+  path: string;
+  motion_score: number;
+  tracked_bbox: [number, number, number, number] | null;
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function frameProxyUrl(path: string): string {
+  return `http://localhost:8000/frames/${path}`;
+}
+
+export default function VolleyProDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [frames, setFrames] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [appState, setAppState] = useState<AppState>({ stage: "idle" });
 
   const navigationItems = [
     { id: "dashboard", label: "Dashboard" },
@@ -72,31 +99,96 @@ const VolleyProDashboard = () => {
     },
   ];
 
+  // ── Step 1: upload ──────────────────────────────────────────────────────────
   async function handleUpload(file: File) {
+    setUploadOpen(false);
+    setAppState({ stage: "uploading" });
+
     const formData = new FormData();
     formData.append("file", file);
 
-    setLoading(true);
-    setFrames([]); // clear old frames
+    try {
+      const res = await fetch("/api/uploadVideo", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      console.log("Preview Photo Data: " + data);
+      if (!res.ok) {
+        setAppState({
+          stage: "error",
+          message: data.error ?? "Upload failed.",
+        });
+        return;
+      }
 
-    const res = await fetch("http://localhost:8000/videos/upload", {
-      method: "POST",
-      body: formData,
-    });
+      setAppState({
+        stage: "selecting",
+        previewFrame: data.preview_frame,
+        videoFilename: data.video_filename,
+      });
+    } catch {
+      setAppState({ stage: "error", message: "Network error during upload." });
+    }
+  }
 
-    const data = await res.json();
+  // ── Step 2: player bbox confirmed → analyse ─────────────────────────────────
+  async function handlePlayerSelected(bbox: Rect) {
+    if (appState.stage !== "selecting") return;
+    const { videoFilename } = appState;
+    setAppState({ stage: "analyzing" });
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bbox_x: bbox.x,
+          bbox_y: bbox.y,
+          bbox_w: bbox.w,
+          bbox_h: bbox.h,
+          video_filename: videoFilename,
+          max_frames: 8,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAppState({
+          stage: "error",
+          message: data.error ?? "Analysis failed.",
+        });
+        return;
+      }
 
-    setFrames(data.frames);
-    setLoading(false);
+      setAppState({
+        stage: "done",
+        frames: data.frames,
+      });
+    } catch {
+      setAppState({
+        stage: "error",
+        message: "Network error during analysis.",
+      });
+    }
+  }
+
+  function reset() {
+    setAppState({ stage: "idle" });
   }
 
   return (
     <div className="flex h-screen bg-gray-900">
+      {/* Player selector modal */}
+      {appState.stage === "selecting" && (
+        <PlayerSelector
+          previewFramePath={appState.previewFrame}
+          onConfirm={handlePlayerSelected}
+          onCancel={reset}
+        />
+      )}
+
       {/* Sidebar */}
       <div
-        className={`${
-          sidebarOpen ? "w-64" : "w-20"
-        } bg-gradient-to-b from-gray-900 to-gray-600 text-white transition-all duration-300 flex flex-col`}
+        className={`${sidebarOpen ? "w-64" : "w-20"} bg-gradient-to-b from-gray-900 to-gray-600 text-white transition-all duration-300 flex flex-col`}
       >
         <div className="p-6 flex items-center justify-between">
           {sidebarOpen && (
@@ -105,34 +197,28 @@ const VolleyProDashboard = () => {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-white/10 rounded-lg"
-          ></button>
+          />
         </div>
-
         <nav className="flex-1 px-3">
-          {navigationItems.map((item) => {
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg mb-2 transition-all ${
-                  activeTab === item.id
-                    ? "bg-gray-700 text-orange-600 shadow-lg"
-                    : "hover:bg-white/10"
-                }`}
-              >
-                {sidebarOpen && (
-                  <span className="font-medium">{item.label}</span>
-                )}
-              </button>
-            );
-          })}
+          {navigationItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center px-4 py-3 rounded-lg mb-2 transition-all ${
+                activeTab === item.id
+                  ? "bg-gray-700 text-orange-600 shadow-lg"
+                  : "hover:bg-white/10"
+              }`}
+            >
+              {sidebarOpen && <span className="font-medium">{item.label}</span>}
+            </button>
+          ))}
         </nav>
-
         <div className="p-3 border-t border-white/10">
-          <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-white/10">
+          <button className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left">
             {sidebarOpen && <span>Settings</span>}
           </button>
-          <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-white/10">
+          <button className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left">
             {sidebarOpen && <span>Logout</span>}
           </button>
         </div>
@@ -140,146 +226,197 @@ const VolleyProDashboard = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {/* Header */}
         <header className="bg-gray-900 shadow-sm p-6 sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-bold text-gray-100">
-                {navigationItems.find((item) => item.id === activeTab)?.label}
+                {navigationItems.find((i) => i.id === activeTab)?.label}
               </h2>
               <p className="text-gray-300 mt-1">
                 Track, analyze, and improve your volleyball skills
               </p>
             </div>
             <button
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                reset();
+                setUploadOpen(true);
+              }}
               className="rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500"
             >
               Submit Video
             </button>
-
             <UploadVideo
-              isOpen={open}
-              onClose={() => setOpen(false)}
+              isOpen={uploadOpen}
+              onClose={() => setUploadOpen(false)}
               onUpload={handleUpload}
             />
           </div>
         </header>
 
-        {/* Dashboard Content */}
         {activeTab === "dashboard" && (
           <div className="p-6 bg-gray-900">
-            {/* Video Processing Status */}
-            {loading && (
-              <p className="text-gray-300 mb-4">Processing video...</p>
+            {/* Status banners */}
+            {(appState.stage === "uploading" ||
+              appState.stage === "analyzing") && (
+              <div className="mb-6 rounded-xl bg-indigo-900/40 border border-indigo-500 p-4 text-indigo-200 flex items-center gap-3">
+                <svg
+                  className="animate-spin h-5 w-5 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8z"
+                  />
+                </svg>
+                {appState.stage === "uploading" ? "Uploading video…" : ""}
+                {appState.stage === "analyzing"
+                  ? "Tracking player and finding key frames…"
+                  : ""}
+              </div>
             )}
 
-            {/* Extracted Frames Preview */}
-            {frames.length > 0 && (
+            {appState.stage === "error" && (
+              <div className="mb-6 rounded-xl bg-red-900/40 border border-red-500 p-4 text-red-200 flex justify-between">
+                <span>{appState.message}</span>
+                <button
+                  onClick={reset}
+                  className="text-sm underline ml-4 shrink-0"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Extracted frames */}
+            {appState.stage === "done" && (
               <div className="mb-8">
-                <h3 className="text-xl font-bold text-gray-100 mb-4">
-                  Extracted Frames
-                </h3>
-
-                <div className="flex flex-wrap gap-4">
-                  {frames.map((frame, i) => (
-                    <div key={i} className="bg-gray-800 p-3 rounded-xl">
-                      <img
-                        src={`http://localhost:8000/${frame.path}`}
-                        width={200}
-                        className="rounded-lg"
-                      />
-                      <p className="text-sm text-gray-300 mt-2">
-                        t = {frame.timestamp}s
-                      </p>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-100">
+                    Action Frames
+                    <span className="ml-3 text-sm font-normal text-gray-400">
+                      ({appState.frames.length} keyframes)
+                    </span>
+                  </h3>
+                  <button
+                    onClick={reset}
+                    className="text-sm text-orange-500 hover:text-orange-400"
+                  >
+                    ← New video
+                  </button>
                 </div>
+
+                {appState.frames.length === 0 ? (
+                  <p className="text-gray-400">
+                    No high-motion frames detected. Try drawing a tighter box
+                    around the player, or use a clip where the player is active.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {appState.frames.map((frame, i) => (
+                      <div
+                        key={i}
+                        className="bg-gray-800 rounded-xl overflow-hidden"
+                      >
+                        <img
+                          src={frameProxyUrl(frame.path)}
+                          alt={`Action at ${frame.timestamp}s`}
+                          className="w-full object-cover"
+                        />
+                        <div className="p-2">
+                          <p className="text-xs text-gray-300">
+                            t = {frame.timestamp}s
+                          </p>
+                          <div className="mt-1 h-1.5 rounded-full bg-gray-700">
+                            <div
+                              className="h-1.5 rounded-full bg-orange-500 transition-all"
+                              style={{
+                                width: `${Math.round(frame.motion_score * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Impact {Math.round(frame.motion_score * 100)}%
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Stats Overview */}
+            {/* Stats cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-gradient bg-teal-500 text-white p-6 rounded-2xl shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl"></div>
-                </div>
+              <div className="bg-teal-500 text-white p-6 rounded-2xl shadow-lg">
                 <div className="text-3xl font-bold mb-1">24</div>
-                <div className="text-blue-100">Videos Analyzed</div>
+                <div className="text-white/80">Videos Analyzed</div>
               </div>
-
               <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl"></div>
-                </div>
                 <div className="text-3xl font-bold mb-1">81.5%</div>
-                <div className="text-green-100">Overall Success Rate</div>
+                <div className="text-white/80">Overall Success Rate</div>
               </div>
-
               <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-2xl shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl"></div>
-                </div>
                 <div className="text-3xl font-bold mb-1">12</div>
-                <div className="text-purple-100">Training Sessions</div>
+                <div className="text-white/80">Training Sessions</div>
               </div>
-
-              <div className="bg-gradient bg-sky-600 text-white p-6 rounded-2xl shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-white/20 rounded-xl"></div>
-                </div>
+              <div className="bg-sky-600 text-white p-6 rounded-2xl shadow-lg">
                 <div className="text-3xl font-bold mb-1">8.2</div>
-                <div className="text-orange-100">Average Score</div>
+                <div className="text-white/80">Average Score</div>
               </div>
             </div>
 
-            {/* Recent Activity */}
+            {/* Recent videos + tips */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Recent Videos */}
-              <div className="lg:col-span-2 bg-gray-800 rounded-2xl shadow-md p-6">
+              <div className="lg:col-span-2 bg-gray-800 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-bold text-gray-100">
                     Recent Videos
                   </h3>
-                  <button className="text-orange-600 hover:text-orange-700 font-semibold text-sm">
+                  <button className="text-orange-600 font-semibold text-sm">
                     View All
                   </button>
                 </div>
                 <div className="space-y-4">
-                  {recentVideos.map((video) => (
+                  {recentVideos.map((v) => (
                     <div
-                      key={video.id}
-                      className="border-l-4 border-orange-500 flex items-center justify-between p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl hover:bg-gray-600 transition-colors cursor-pointer"
+                      key={v.id}
+                      className="border-l-4 border-orange-500 flex items-center justify-between p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl cursor-pointer"
                     >
                       <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl flex items-center justify-center"></div>
+                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shrink-0" />
                         <div>
                           <h4 className="font-semibold text-gray-100">
-                            {video.title}
+                            {v.title}
                           </h4>
-                          <div className="flex items-center space-x-3 mt-1">
-                            <span className="text-sm text-gray-100">
-                              {video.skill}
-                            </span>
+                          <div className="flex items-center space-x-3 mt-1 text-sm text-gray-100">
+                            <span>{v.skill}</span>
                             <span className="text-gray-400">•</span>
-                            <span className="text-sm text-gray-100">
-                              {video.date}
-                            </span>
+                            <span>{v.date}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        {video.status === "completed" ? (
-                          <div>
+                      <div className="text-right shrink-0">
+                        {v.status === "completed" ? (
+                          <>
                             <div className="text-2xl font-bold text-green-400">
-                              {video.score}
+                              {v.score}
                             </div>
                             <div className="text-xs text-gray-300">Score</div>
-                          </div>
+                          </>
                         ) : (
-                          <div className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
-                            Analyzing...
-                          </div>
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
+                            Analyzing…
+                          </span>
                         )}
                       </div>
                     </div>
@@ -287,8 +424,7 @@ const VolleyProDashboard = () => {
                 </div>
               </div>
 
-              {/* Improvement Tips */}
-              <div className="bg-gray-800 rounded-2xl shadow-md p-6">
+              <div className="bg-gray-800 rounded-2xl p-6">
                 <h3 className="text-xl font-bold text-gray-100 mb-6">
                   Improvement Tips
                 </h3>
@@ -303,7 +439,7 @@ const VolleyProDashboard = () => {
                           {tip.title}
                         </h4>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ml-2 ${
                             tip.priority === "high"
                               ? "bg-red-100 text-red-700"
                               : tip.priority === "medium"
@@ -326,33 +462,28 @@ const VolleyProDashboard = () => {
           </div>
         )}
 
-        {/* Stats Content */}
         {activeTab === "stats" && (
           <div className="p-6">
-            <div className="bg-gray-800 rounded-2xl shadow-md p-6 mb-6">
+            <div className="bg-gray-800 rounded-2xl p-6">
               <h3 className="text-xl font-bold text-gray-100 mb-6">
                 Performance Overview
               </h3>
               <div className="space-y-4">
-                {statsData.map((stat) => (
-                  <div key={stat.skill} className="p-4 bg-gray-700 rounded-xl">
+                {statsData.map((s) => (
+                  <div key={s.skill} className="p-4 bg-gray-700 rounded-xl">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-100">
-                        {stat.skill}
-                      </h4>
+                      <h4 className="font-semibold text-gray-100">{s.skill}</h4>
                       <span className="text-2xl font-bold text-orange-600">
-                        {stat.rate}%
+                        {s.rate}%
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-sm text-gray-200 mb-2">
-                      <span>
-                        {stat.success} / {stat.attempts} successful
-                      </span>
-                    </div>
+                    <p className="text-sm text-gray-200 mb-2">
+                      {s.success} / {s.attempts} successful
+                    </p>
                     <div className="w-full bg-gray-200 rounded-full h-3">
                       <div
-                        className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full transition-all"
-                        style={{ width: `${stat.rate}%` }}
+                        className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full"
+                        style={{ width: `${s.rate}%` }}
                       />
                     </div>
                   </div>
@@ -361,38 +492,7 @@ const VolleyProDashboard = () => {
             </div>
           </div>
         )}
-
-        {/* Videos Content */}
-        {activeTab === "videos" && (
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {recentVideos.map((video) => (
-                <div
-                  key={video.id}
-                  className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all"
-                >
-                  <div className="h-48 bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center"></div>
-                  <div className="p-4">
-                    <h4 className="font-bold text-gray-900 mb-2">
-                      {video.title}
-                    </h4>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">{video.skill}</span>
-                      {video.score && (
-                        <span className="font-bold text-orange-600">
-                          {video.score}/10
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
-};
-
-export default VolleyProDashboard;
+}
