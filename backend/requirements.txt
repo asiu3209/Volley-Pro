@@ -7,5 +7,5 @@ python-multipart
 boto3
 python-dotenv
 psycopg2-binary
-mediapipe
+mediapipe==0.10.9
 opencv-contrib-python
