@@ -11,5 +11,5 @@ result = analyze_frames_with_gemini(
     action_type="passing"
 )
 
-print("\n🔥 GEMINI RESULT:\n")
+print("\nGEMINI RESULT:\n")
 print(result)
