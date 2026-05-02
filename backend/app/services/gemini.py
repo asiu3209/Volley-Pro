@@ -3,11 +3,11 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-load_dotenv()
+load_dotenv(override=True)
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-
+print(os.getenv("GEMINI_API_KEY"))
 def analyze_frames_with_gemini(
     frame_paths: list[str],
     action_type: str | None = None
@@ -50,7 +50,7 @@ Be concise and actionable.
         )
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         contents=contents
     )
 
