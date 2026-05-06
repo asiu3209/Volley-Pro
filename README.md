@@ -4,17 +4,16 @@ A cutting-edge AI-powered volleyball form analysis platform that provides real-t
 
 ## Project Overview
 
-Volley Pro enables volleyball players to submit 5-second video clips that are analyzed frame-by-frame using advanced computer vision and machine learning. The platform compares player movements against a curated dataset of professional volleyball techniques, generating personalized feedback and recommending instructional content from professional coaches.
+Volley Pro enables volleyball players to submit 5-second video clips that are analyzed frame-by-frame using advanced computer vision and LLMs. The platform compares player movements against a curated dataset of professional volleyball techniques, generating personalized feedback and recommending instructional content from professional coaches.
 
 ## Key Features
 
-- **Video Upload & Processing** - Easy-to-use interface for submitting volleyball clips
+- **Video Upload & Processing** - Easy-to-use interface for submitting volleyball clips, clips are limited to about 10 seconds
 - **Frame-by-Frame Analysis** - Detailed examination of player technique across all frames
-- **AI-Powered Feedback** - LLM-generated coaching tips and improvement suggestions
-- **Professional Comparison** - Benchmarking against best-practice volleyball forms
+- **AI-Powered Feedback** - LLM-generated coaching tips and improvement suggestions.
+- **Professional Comparison** - Benchmarking against best-practice volleyball forms from the very top players of our time
 - **Video Recommendations** - Curated professional volleyball coaching content suggestions
 - **User Authentication** - Secure account management via Auth0
-- **Cloud Storage** - S3-based video file management
 - **Performance Tracking** - Historical analysis and progress monitoring
 
 ## Technology Stack
@@ -29,58 +28,17 @@ Volley Pro enables volleyball players to submit 5-second video clips that are an
 ### Backend
 
 - **Python** - Core analysis engine
-- **FastAPI/Flask** - RESTful API endpoints
+- **FastAPI** - RESTful API endpoints
 - **Next.js API Routes** - Serverless backend functions
-- **PostgreSQL** - Relational database
+- **Supabase** - User Database and User Login
 - **AWS S3** - Video storage and delivery
 
 ### ML & Analysis
 
 - **OpenCV** - Video processing and frame extraction
 - **MediaPipe** - Pose detection and skeleton tracking
-- **LLM Integration** - AI-powered feedback generation
+- **LLM Integration** - AI-powered feedback generation using Gemini
 - **TensorFlow/PyTorch** - Model inference
-
-## Project Structure
-
-```
-volleyPro/
-├── app/                          # Next.js frontend
-│   ├── api/                      # API routes
-│   │   ├── auth0/               # Authentication endpoints
-│   │   ├── clips/               # Clip management
-│   │   ├── uploadVideo/         # Video upload handling
-│   │   └── videos/              # Video operations
-│   ├── components/
-│   │   └── UploadVideo/         # Video upload component
-│   ├── layout.tsx               # Root layout
-│   ├── page.tsx                 # Home page
-│   └── globals.css              # Global styles
-│
-├── backend/                      # Python backend services
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── clips.py         # Clip endpoints
-│   │   │   ├── stats.py         # Statistics endpoints
-│   │   │   └── videos.py        # Video endpoints
-│   │   ├── core/
-│   │   │   └── config.py        # Configuration
-│   │   ├── db/
-│   │   │   ├── base.py          # Database models
-│   │   │   └── session.py       # DB session management
-│   │   ├── models/
-│   │   │   ├── clip.py          # Clip model
-│   │   │   ├── user.py          # User model
-│   │   │   └── video.py         # Video model
-│   │   ├── services/
-│   │   │   ├── s3.py            # AWS S3 integration
-│   │   │   └── video_processing.py  # Analysis engine
-│   │   └── main.py              # API entry point
-│   ├── alembic/                 # Database migrations
-│   └── requirements.txt          # Python dependencies
-│
-└── README.md                     # This file
-```
 
 ## Installation
 
@@ -104,16 +62,16 @@ npm run dev
 
 ```bash
 cd backend
-python -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
 ### Database Setup
 
 ```bash
-# Run migrations
-alembic upgrade head
+
 ```
 
 ### Environment Configuration
@@ -147,59 +105,6 @@ AWS_S3_BUCKET=your_bucket_name
    - Access suggested professional videos
    - Track improvement over time
 
-## Current Development Status
-
-### Completed
-
-- ✅ User authentication (Auth0 integration)
-- ✅ Video upload pipeline
-- ✅ S3 cloud storage integration
-- ✅ Basic database models
-- ✅ API route scaffolding
-- ✅ Frontend UI components
-
-### In Progress
-
-- 🔄 Frame extraction and preprocessing
-- 🔄 Pose detection pipeline
-- 🔄 Form comparison algorithm
-- 🔄 LLM integration for feedback
-
-### TODO
-
-- ⏳ Professional volleyball dataset curation
-- ⏳ Advanced form analysis engine
-- ⏳ LLM model selection and optimization
-- ⏳ Frontend-backend API integration
-- ⏳ Database schema finalization
-- ⏳ Performance optimization
-- ⏳ Unit and integration tests
-- ⏳ Deployment pipeline
-
-## Key Challenges
-
-### 1. Dataset Collection
-
-- **Challenge**: Finding/creating a comprehensive dataset of professional volleyball techniques
-- **Approach**: Consider collaborating with professional volleyball organizations, synthetic data generation, or OpenAI model fine-tuning
-
-### 2. LLM Selection
-
-- **Challenge**: Selecting cost-effective yet accurate LLM for form analysis feedback
-- **Options**:
-  - OpenAI GPT-4 (powerful but expensive)
-  - Open-source models (Llama, Mistral)
-  - Fine-tuned smaller models (cost-effective)
-
-### 3. Cost & Efficiency
-
-- **Challenge**: Managing API costs and inference latency
-- **Strategies**:
-  - Implement caching for common feedback
-  - Batch processing where possible
-  - Use edge computing for pose detection
-  - Optimize video compression
-
 ## API Endpoints
 
 ### Authentication
@@ -232,7 +137,6 @@ Contributions are welcome! Please follow these steps:
 3. Commit changes (`git commit -m 'Add amazing feature'`)
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
-
 
 ## License
 
