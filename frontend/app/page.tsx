@@ -7,7 +7,12 @@ import PlayerSelector from "./components/Playerselector";
 type AppState =
   | { stage: "idle" }
   | { stage: "uploading" }
-  | { stage: "selecting"; previewFrame: string; videoFilename: string }
+  | {
+      stage: "selecting";
+      previewFrame: string;
+      videoFilename: string;
+      videoId: string;
+    }
   | { stage: "analyzing" }
   | { stage: "done"; frames: FrameMeta[] }
   | { stage: "error"; message: string };
@@ -29,6 +34,25 @@ interface Rect {
 
 function frameProxyUrl(path: string): string {
   return `http://localhost:8000/frames/${path}`;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string") return error;
+  if (Array.isArray(error)) {
+    return error
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          return String(item.msg);
+        }
+        return JSON.stringify(item);
+      })
+      .join(", ");
+  }
+  if (error && typeof error === "object" && "msg" in error) {
+    return String(error.msg);
+  }
+  return fallback;
 }
 
 export default function VolleyProDashboard() {
@@ -117,7 +141,7 @@ export default function VolleyProDashboard() {
       if (!res.ok) {
         setAppState({
           stage: "error",
-          message: data.error ?? "Upload failed.",
+          message: errorMessage(data.error, "Upload failed."),
         });
         return;
       }
@@ -126,6 +150,7 @@ export default function VolleyProDashboard() {
         stage: "selecting",
         previewFrame: data.preview_frame,
         videoFilename: data.video_filename,
+        videoId: data.video_id,
       });
     } catch {
       setAppState({ stage: "error", message: "Network error during upload." });
@@ -135,7 +160,7 @@ export default function VolleyProDashboard() {
   // ── Step 2: player bbox confirmed → analyse ─────────────────────────────────
   async function handlePlayerSelected(bbox: Rect) {
     if (appState.stage !== "selecting") return;
-    const { videoFilename } = appState;
+    const { videoFilename, videoId } = appState;
     setAppState({ stage: "analyzing" });
     try {
       const res = await fetch("/api/analyze", {
@@ -146,6 +171,7 @@ export default function VolleyProDashboard() {
           bbox_y: bbox.y,
           bbox_w: bbox.w,
           bbox_h: bbox.h,
+          video_id: videoId,
           video_filename: videoFilename,
           max_frames: 8,
         }),
@@ -154,7 +180,7 @@ export default function VolleyProDashboard() {
       if (!res.ok) {
         setAppState({
           stage: "error",
-          message: data.error ?? "Analysis failed.",
+          message: errorMessage(data.error, "Analysis failed."),
         });
         return;
       }
