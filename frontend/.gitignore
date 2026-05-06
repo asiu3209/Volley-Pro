@@ -61,3 +61,5 @@ build/
 frames/
 *.mp4
 *.avi
+
+node_modules/
