@@ -45,7 +45,7 @@ Volley Pro enables volleyball players to submit 5-second video clips that are an
 ### Prerequisites
 
 - Node.js 18+
-- Python 3.9+
+- Python 3.12+
 - PostgreSQL 12+
 - AWS account (for S3)
 - Auth0 account
