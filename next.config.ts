@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  turbopack: {}, // 👈 forces compatibility mode
+
   webpack: (config) => {
     config.watchOptions = {
-      poll: 1000, // Check for changes every second
-      aggregateTimeout: 300, // Delay before rebuilding
+      poll: 1000,
+      aggregateTimeout: 300,
     };
     return config;
   },
