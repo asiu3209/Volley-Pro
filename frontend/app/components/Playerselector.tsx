@@ -35,7 +35,8 @@ export default function PlayerSelector({
 
     const img = new Image();
     console.log("Preview Path Test: " + previewFramePath);
-    img.src = `/api/${previewFramePath}`;
+    //Replace this localhost with an railway url for vercel
+    img.src = `http://localhost:8000/${previewFramePath}`;
     console.log("Image Source: " + img.src);
     img.onload = () => {
       imageRef.current = img;
