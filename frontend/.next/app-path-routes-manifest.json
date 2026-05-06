@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/auth0/signin/route": "/api/auth0/signin",
+  "/_global-error/page": "/_global-error",
+  "/api/frames/[...path]/route": "/api/frames/[...path]",
+  "/api/analyze/route": "/api/analyze",
+  "/api/clips/route": "/api/clips",
+  "/api/auth0/signup/route": "/api/auth0/signup",
+  "/api/uploadVideo/route": "/api/uploadVideo",
+  "/page": "/"
+}
