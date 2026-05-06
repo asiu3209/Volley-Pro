@@ -7,6 +7,7 @@ supabase==2.30.0
 SQLAlchemy==2.0.49
 psycopg2-binary
 numpy<2.3
+opencv-python-headless
 opencv-contrib-python-headless
 mediapipe==0.10.21
 google-genai
