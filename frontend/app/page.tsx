@@ -3,7 +3,7 @@
 import { useState } from "react";
 import UploadVideo from "./components/UploadVideo/UploadVideo";
 import PlayerSelector from "./components/Playerselector";
-import { backendAssetUrl } from "./lib/backendUrl";
+import { backendApiUrl, backendAssetUrl } from "./lib/backendUrl";
 
 type AppState =
   | { stage: "idle" }
@@ -133,7 +133,7 @@ export default function VolleyProDashboard() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/uploadVideo", {
+      const res = await fetch(backendApiUrl("videos/upload"), {
         method: "POST",
         body: formData,
       });
