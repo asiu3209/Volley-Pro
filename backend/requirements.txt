@@ -1,17 +1,21 @@
+# Web Frameworks
 fastapi
 uvicorn
+Flask
+gunicorn
+
+# Database
 sqlalchemy
 psycopg2-binary
+
+# Utilities & Cloud
 pydantic
 python-multipart
 boto3
 python-dotenv
-opencv-python
-psycopg2-binary
 google-generativeai
-psycopg2-binary
-mediapipe==0.10.21
-opencv-contrib-python
-genai
-Flask
-gunicorn
+
+# Computer Vision (Server Optimized)
+opencv-python-headless
+opencv-contrib-python-headless
+mediapipe==0.10.15
