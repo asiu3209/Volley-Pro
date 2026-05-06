@@ -1,0 +1,23 @@
+[00:00:01.068] Server  LOG     ✓ Ready in 880ms
+[00:00:07.361] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:15.122] Browser LOG     Upload has been completed inside upload video component
+[00:00:15.294] Server  ERROR   Upload error: TypeError: fetch failed
+[00:00:15.402] Browser LOG     Preview Photo Data: [object Object]
+[00:01:06.341] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:01:17.363] Browser LOG     Upload has been completed inside upload video component
+[00:01:17.363] Browser LOG     Preview Photo Data: [object Object]
+[00:01:17.363] Browser LOG     Preview Path Test: frames/preview_tmp_dfc22kh.mp4.jpg
+[00:01:17.363] Browser LOG     Image Source: http://localhost:3001/api/frames/preview_tmp_dfc22kh.mp4.jpg
+[00:01:17.363] Browser LOG     Preview Path Test: frames/preview_tmp_dfc22kh.mp4.jpg
+[00:01:17.363] Browser LOG     Image Source: http://localhost:3001/api/frames/preview_tmp_dfc22kh.mp4.jpg
+[00:08:27.216] Server  ERROR   Upload error: TypeError: fetch failed
+[00:08:27.323] Browser LOG     Upload has been completed inside upload video component
+[00:08:27.323] Browser LOG     Preview Photo Data: [object Object]
+[00:08:29.190] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:08:36.359] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:08:39.183] Browser LOG     Upload has been completed inside upload video component
+[00:08:39.183] Browser LOG     Preview Photo Data: [object Object]
+[00:08:39.183] Browser LOG     Preview Path Test: frames/preview_tmp0cqowscv.mp4.jpg
+[00:08:39.183] Browser LOG     Image Source: http://localhost:3001/api/frames/preview_tmp0cqowscv.mp4.jpg
+[00:08:39.183] Browser LOG     Preview Path Test: frames/preview_tmp0cqowscv.mp4.jpg
+[00:08:39.183] Browser LOG     Image Source: http://localhost:3001/api/frames/preview_tmp0cqowscv.mp4.jpg

@@ -1,0 +1,6 @@
+{
+  "/api/uploadVideo/route": "app/api/uploadVideo/route.js",
+  "/api/frames/[...path]/route": "app/api/frames/[...path]/route.js",
+  "/api/analyze/route": "app/api/analyze/route.js",
+  "/page": "app/page.js"
+}
