@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import { backendAssetUrl } from "../lib/backendUrl";
 
 interface Rect {
   x: number; // fraction of image width  (0–1)
@@ -35,8 +36,7 @@ export default function PlayerSelector({
 
     const img = new Image();
     console.log("Preview Path Test: " + previewFramePath);
-    //Replace this localhost with an railway url for vercel
-    img.src = `http://localhost:8000/${previewFramePath}`;
+    img.src = backendAssetUrl(previewFramePath);
     console.log("Image Source: " + img.src);
     img.onload = () => {
       imageRef.current = img;

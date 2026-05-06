@@ -3,6 +3,7 @@
 import { useState } from "react";
 import UploadVideo from "./components/UploadVideo/UploadVideo";
 import PlayerSelector from "./components/Playerselector";
+import { backendAssetUrl } from "./lib/backendUrl";
 
 type AppState =
   | { stage: "idle" }
@@ -33,7 +34,7 @@ interface Rect {
 }
 
 function frameProxyUrl(path: string): string {
-  return `http://localhost:8000/frames/${path}`;
+  return backendAssetUrl(`frames/${path}`);
 }
 
 function errorMessage(error: unknown, fallback: string): string {

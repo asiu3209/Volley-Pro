@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const BACKEND_URL = (
+  process.env.INTERNAL_API_URL ?? "http://localhost:8000"
+).replace(/\/$/, "");
+
 /**
  * POST /api/clips
  * Creates a clip (serve, spike, block, etc.)
@@ -8,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const backendRes = await fetch("http://localhost:8000/clips", {
+    const backendRes = await fetch(`${BACKEND_URL}/clips`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
