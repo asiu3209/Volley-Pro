@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
-from app.services.video_processing import extract_frames_for_player
+from app.services.video_processing import enable_video_orientation, extract_frames_for_player
 
 router = APIRouter()
 
@@ -52,6 +52,7 @@ def upload_video(file: UploadFile = File(...)):
 
     try:
         cap = cv2.VideoCapture(tmp_path)
+        enable_video_orientation(cap)
         ret, first_frame = cap.read()
         cap.release()
 
@@ -62,9 +63,7 @@ def upload_video(file: UploadFile = File(...)):
         base         = os.path.basename(tmp_path)
         stored_path  = os.path.join(FRAMES_DIR, f"video_{base}")
         preview_name = f"preview_{base}.jpg"
-        print("THIS THINGY: " + FRAMES_DIR)
         preview_path = os.path.join(FRAMES_DIR, preview_name)
-        print("Preview Path: " + preview_path)
         shutil.move(tmp_path, stored_path)
         cv2.imwrite(preview_path, first_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
@@ -104,9 +103,14 @@ def analyze_video(req: AnalyzeRequest):
         start_time = time.time()
 
         cap = cv2.VideoCapture(video_path)
-        vid_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        vid_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        enable_video_orientation(cap)
+        ret, first_frame = cap.read()
         cap.release()
+
+        if not ret:
+            raise HTTPException(status_code=422, detail="Cannot read video.")
+
+        vid_h, vid_w = first_frame.shape[:2]
 
         bbox_px = (
             int(req.bbox_x * vid_w),

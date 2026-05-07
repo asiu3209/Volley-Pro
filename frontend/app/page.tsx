@@ -138,7 +138,6 @@ export default function VolleyProDashboard() {
         body: formData,
       });
       const data = await res.json();
-      console.log("Preview Photo Data: " + data);
       if (!res.ok) {
         setAppState({
           stage: "error",

@@ -19,6 +19,11 @@ W_SHOULDER = 0.15
 W_AIRTIME = 0.10
 
 
+def enable_video_orientation(cap: cv2.VideoCapture) -> None:
+    if hasattr(cv2, "CAP_PROP_ORIENTATION_AUTO"):
+        cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def _blur_score(frame: np.ndarray) -> float:
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -65,6 +70,45 @@ def _hip_height_score(landmarks, frame_height: int) -> float:
     return max(0.0, 1.0 - (avg_y / 0.6))
 
 
+def _best_context_frame(
+    video_path: str,
+    strided: list[tuple[int, tuple[int, int, int, int] | None]],
+    ctx_start: int,
+    ctx_end: int,
+) -> tuple[int | None, np.ndarray | None, tuple[int, int, int, int] | None]:
+    wanted = {strided[i][0]: strided[i][1] for i in range(ctx_start, ctx_end + 1)}
+    if not wanted:
+        return None, None, None
+
+    cap = cv2.VideoCapture(video_path)
+    enable_video_orientation(cap)
+
+    best_frame = None
+    best_idx = None
+    best_bbox = None
+    best_blur = -1.0
+    max_idx = max(wanted)
+    raw_count = 0
+
+    while raw_count <= max_idx:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if raw_count in wanted:
+            blur = _blur_score(frame)
+            if blur > best_blur:
+                best_blur = blur
+                best_frame = frame.copy()
+                best_idx = raw_count
+                best_bbox = wanted[raw_count]
+
+        raw_count += 1
+
+    cap.release()
+    return best_idx, best_frame, best_bbox
+
+
 # ── MAIN FUNCTION ────────────────────────────────────────────────────────────
 def extract_frames_for_player(
     video_path: str,
@@ -80,12 +124,11 @@ def extract_frames_for_player(
     os.makedirs(output_dir, exist_ok=True)
 
     cap = cv2.VideoCapture(video_path)
+    enable_video_orientation(cap)
     if not cap.isOpened():
         raise ValueError(f"Cannot open video: {video_path}")
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    vid_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    vid_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     min_gap_fr = int(MIN_GAP_SECONDS * fps)
 
     # ── Tracker ──────────────────────────────────────────────────────────────
@@ -98,8 +141,16 @@ def extract_frames_for_player(
             cap.release()
             return []
 
+        vid_h, vid_w = first_frame.shape[:2]
         tracker = cv2.legacy.TrackerCSRT_create()
         tracker.init(first_frame, player_bbox)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    else:
+        ret, first_frame = cap.read()
+        if not ret:
+            cap.release()
+            return []
+        vid_h, vid_w = first_frame.shape[:2]
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     # ── MediaPipe (IMPORTANT: initialized safely inside function) ────────────
@@ -182,7 +233,7 @@ def extract_frames_for_player(
         shoulder_s.append(sv)
         air_s.append(av)
 
-        strided.append((raw_count, frame.copy(), bbox_this_frame))
+        strided.append((raw_count, bbox_this_frame))
 
         prev_landmarks = curr_landmarks
         raw_count += 1
@@ -223,22 +274,14 @@ def extract_frames_for_player(
         ctx_start = max(0, pi - CONTEXT_FRAMES)
         ctx_end = min(n - 1, pi + CONTEXT_FRAMES)
 
-        best_frame = None
-        best_idx = None
-        best_bbox = None
-        best_blur = -1
+        best_idx, best_frame, best_bbox = _best_context_frame(
+            video_path=video_path,
+            strided=strided,
+            ctx_start=ctx_start,
+            ctx_end=ctx_end,
+        )
 
-        for i in range(ctx_start, ctx_end + 1):
-            raw_idx, frm, bbox = strided[i]
-            b = _blur_score(frm)
-
-            if b > best_blur:
-                best_blur = b
-                best_frame = frm
-                best_idx = raw_idx
-                best_bbox = bbox
-
-        if best_idx is None or best_idx - last_saved < min_gap_fr:
+        if best_idx is None or best_frame is None or best_idx - last_saved < min_gap_fr:
             continue
 
         out = best_frame.copy()

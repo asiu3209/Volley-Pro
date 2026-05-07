@@ -21,7 +21,6 @@ export default function UploadVideo({
     if (!file) return;
     onUpload(file);
     onClose();
-    console.log("Upload has been completed inside upload video component");
   };
 
   return (

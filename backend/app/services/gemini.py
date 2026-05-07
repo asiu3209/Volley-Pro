@@ -7,7 +7,6 @@ load_dotenv(override=True)
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-print(os.getenv("GEMINI_API_KEY"))
 def analyze_frames_with_gemini(
     frame_paths: list[str],
     action_type: str | None = None

@@ -35,9 +35,7 @@ export default function PlayerSelector({
     if (!canvas) return;
 
     const img = new Image();
-    console.log("Preview Path Test: " + previewFramePath);
     img.src = backendAssetUrl(previewFramePath);
-    console.log("Image Source: " + img.src);
     img.onload = () => {
       imageRef.current = img;
 
