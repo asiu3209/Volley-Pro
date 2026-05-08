@@ -1,10 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "../lib/supabase/client";
 
 type Tab = "login" | "signup";
 
 export default function AuthPage() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  
   const [tab, setTab] = useState<Tab>("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({
@@ -14,14 +23,96 @@ export default function AuthPage() {
     confirmPassword: "",
   });
 
-  function handleLoginSubmit(e: React.FormEvent) {
+  async function handleLoginSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // auth to be implemented
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginForm.email,
+      password: loginForm.password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    router.push("/");
+    router.refresh();
   }
 
-  function handleSignupSubmit(e: React.FormEvent) {
+  async function handleSignupSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // auth to be implemented
+    
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    if (signupForm.password !== signupForm.confirmPassword) {
+      setError("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: signupForm.email,
+      password: signupForm.password,
+      options: {
+        data: {
+          full_name: signupForm.name,
+        },
+      },
+    });
+
+    if (authError) {
+      setError(authError.message);
+      setLoading(false);
+      return;
+    }
+
+    const authUser = authData.user;
+
+    if (!authUser) {
+      setMessage("Account created. Please check your email to confirm your account.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: userRow, error: userError } = await supabase
+      .from("users")
+      .insert({
+        email: signupForm.email,
+        auth_user_id: authUser.id,
+      })
+      .select("id")
+      .single();
+
+    if (userError) {
+      setError(userError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userRow.id,
+      full_name: signupForm.name,
+    });
+
+    setLoading(false);
+
+    if (profileError) {
+      setError(profileError.message);
+      return;
+    }
+
+    setMessage("Account created successfully.");
+    router.push("/");
+    router.refresh();
   }
 
   return (
@@ -64,6 +155,16 @@ export default function AuthPage() {
           </div>
 
           <div className="p-8">
+            {error && (
+                <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  {error}
+                </div>
+              )}
+              {message && (
+                <div className="mb-4 rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-400">
+                  {message}
+                </div>
+              )}
             {tab === "login" ? (
               <form onSubmit={handleLoginSubmit} className="space-y-5">
                 <div>
@@ -104,9 +205,10 @@ export default function AuthPage() {
                 </div>
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500 transition-colors"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-60"
                 >
-                  Log In
+                  {loading ? "Logging in..." : "Log In"}
                 </button>
                 <p className="text-center text-xs text-gray-400">
                   Don&apos;t have an account?{" "}
@@ -182,9 +284,10 @@ export default function AuthPage() {
                 </div>
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500 transition-colors"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-60"
                 >
-                  Create Account
+                  {loading ? "Creating account..." : "Create Account"}
                 </button>
                 <p className="text-center text-xs text-gray-400">
                   Already have an account?{" "}
