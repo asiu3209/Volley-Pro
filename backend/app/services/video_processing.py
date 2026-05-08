@@ -4,6 +4,23 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
+# Global model cache - initialized once at startup
+_pose_detector = None
+
+def get_pose_detector():
+    """Get or initialize the shared MediaPipe Pose detector."""
+    global _pose_detector
+    if _pose_detector is None:
+        mp_pose = mp.solutions.pose
+        _pose_detector = mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=1,
+            min_detection_confidence=0.35,
+            min_tracking_confidence=0.35,
+        )
+    return _pose_detector
+
+
 # ── Tuning ────────────────────────────────────────────────────────────────────
 MIN_GAP_SECONDS = 0.4
 CONTEXT_FRAMES = 3
@@ -153,14 +170,8 @@ def extract_frames_for_player(
         vid_h, vid_w = first_frame.shape[:2]
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
-    # ── MediaPipe (IMPORTANT: initialized safely inside function) ────────────
-    mp_pose = mp.solutions.pose
-    pose_detector = mp_pose.Pose(
-        static_image_mode=False,
-        model_complexity=1,
-        min_detection_confidence=0.35,
-        min_tracking_confidence=0.35,
-    )
+    # ── MediaPipe (cached globally to avoid memory overhead) ────────────
+    pose_detector = get_pose_detector()
 
     # ── Storage ───────────────────────────────────────────────────────────────
     strided = []
@@ -239,7 +250,6 @@ def extract_frames_for_player(
         raw_count += 1
 
     cap.release()
-    pose_detector.close()
 
     if not strided:
         return []

@@ -10,11 +10,23 @@ from app.api.analysis import router as analysisRouter
 from app.api.users import router as users_router
 from app.api.profiles import router as profiles_router
 
+# Services
+from app.services.video_processing import get_pose_detector
+
 
 # ─────────────────────────────────────────────
 # App
 # ─────────────────────────────────────────────
 app = FastAPI(title="Volley Pro API", version="1.0.0")
+
+
+# ─────────────────────────────────────────────
+# Startup
+# ─────────────────────────────────────────────
+@app.on_event("startup")
+async def startup_event():
+    """Pre-load MediaPipe model at startup to avoid cold-start delays."""
+    get_pose_detector()
 
 
 # ─────────────────────────────────────────────
