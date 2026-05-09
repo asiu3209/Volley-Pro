@@ -34,6 +34,15 @@ W_WRIST = 0.50
 W_ELBOW = 0.25
 W_SHOULDER = 0.15
 W_AIRTIME = 0.10
+# Limb blend vs short “burst” from wrist/elbow deltas (captures impacts not only global max velocity).
+IMPACT_BURST_WEIGHT = 0.26
+
+# Re-check each saved frame: tracker box can lag so the court looks “empty” inside the green rect.
+POSE_CHECK_IDX = frozenset({11, 12, 13, 14, 15, 16, 23, 24, 25, 26})
+MIN_VISIBLE_POSE = 5
+LANDMARK_VIS_CUTOFF = 0.35
+REFINE_PAD_PX = 22
+SEARCH_EXPAND_FACTOR = 1.68
 
 
 def enable_video_orientation(cap: cv2.VideoCapture) -> None:
@@ -50,6 +59,38 @@ def _blur_score(frame: np.ndarray) -> float:
 def _normalise(arr: np.ndarray) -> np.ndarray:
     rng = arr.max() - arr.min()
     return (arr - arr.min()) / rng if rng > 0 else np.zeros_like(arr)
+
+
+def _robust_unit(arr: np.ndarray, lo_pct: float = 10.0, hi_pct: float = 92.0) -> np.ndarray:
+    """
+    Map values into ~[0,1] using inner percentiles so one wild outlier frame
+    does not flatten everything else — matches “several peaks matter” UX.
+    """
+    a = np.asarray(arr, dtype=np.float64)
+    if a.size == 0:
+        return np.zeros_like(a, dtype=np.float64)
+    lo = float(np.percentile(a, lo_pct))
+    hi = float(np.percentile(a, hi_pct))
+    if hi <= lo:
+        return _normalise(a)
+    out = np.clip((a - lo) / (hi - lo), 0.0, 1.0)
+    return out
+
+
+def _wrist_elbow_burst_signal(wrist_s: list[float], elbow_s: list[float]) -> np.ndarray:
+    rw = np.asarray(wrist_s, dtype=np.float64)
+    ew = np.asarray(elbow_s, dtype=np.float64)
+    fused = rw + ew
+    n = len(fused)
+    jerk = np.zeros(n, dtype=np.float64)
+    if n >= 2:
+        jerk[1:] = np.abs(np.diff(fused))
+    snap = np.zeros(n, dtype=np.float64)
+    if n >= 3:
+        snap[2:] = np.abs(fused[:-2] - 2 * fused[1:-1] + fused[2:])
+    jb = _robust_unit(jerk)
+    sb = _robust_unit(snap)
+    return 0.55 * jb + 0.45 * sb
 
 
 def _landmark_velocity(prev_lm, curr_lm, ids: set, w: int, h: int) -> float:
@@ -85,6 +126,102 @@ def _hip_height_score(landmarks, frame_height: int) -> float:
 
     avg_y = sum(ys) / len(ys)
     return max(0.0, 1.0 - (avg_y / 0.6))
+
+
+def _clip_xywh_frame(
+    x: int, y: int, w: int, h: int, fw: int, fh: int,
+) -> tuple[int, int, int, int]:
+    x = max(0, min(x, fw - 1))
+    y = max(0, min(y, fh - 1))
+    w = max(8, min(w, fw - x))
+    h = max(8, min(h, fh - y))
+    return x, y, w, h
+
+
+def _expand_search_bbox(
+    bbox: tuple[int, int, int, int], fw: int, fh: int,
+) -> tuple[int, int, int, int]:
+    bx, by, bw, bh = bbox
+    cx, cy = bx + bw * 0.5, by + bh * 0.5
+    nw = min(fw, max(int(bw * SEARCH_EXPAND_FACTOR), bw + 48))
+    nh = min(fh, max(int(bh * SEARCH_EXPAND_FACTOR), bh + 48))
+    nx = int(cx - nw * 0.5)
+    ny = int(cy - nh * 0.5)
+    return _clip_xywh_frame(nx, ny, nw, nh, fw, fh)
+
+
+def _tight_bbox_from_landmarks_global(
+    lm,
+    roi_off_x: int,
+    roi_off_y: int,
+    roi_w: int,
+    roi_h: int,
+    frame_w: int,
+    frame_h: int,
+) -> tuple[int, int, int, int] | None:
+    xs: list[float] = []
+    ys: list[float] = []
+    for idx in POSE_CHECK_IDX:
+        try:
+            p = lm.landmark[idx]
+            if p.visibility < LANDMARK_VIS_CUTOFF:
+                continue
+            gx = roi_off_x + p.x * roi_w
+            gy = roi_off_y + p.y * roi_h
+            xs.append(gx)
+            ys.append(gy)
+        except (IndexError, AttributeError):
+            pass
+
+    if len(xs) < MIN_VISIBLE_POSE:
+        return None
+
+    x1 = int(min(xs) - REFINE_PAD_PX)
+    y1 = int(min(ys) - REFINE_PAD_PX)
+    x2 = int(max(xs) + REFINE_PAD_PX)
+    y2 = int(max(ys) + REFINE_PAD_PX)
+    bw = x2 - x1
+    bh = y2 - y1
+    if bw < 36 or bh < 36:
+        return None
+    return _clip_xywh_frame(x1, y1, bw, bh, frame_w, frame_h)
+
+
+def _refine_person_bbox(
+    frame_bgr: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    pose,
+) -> tuple[int, int, int, int] | None:
+    """Return a tight body box from Mediapipe, or None if no credible person in search areas."""
+    fh, fw = frame_bgr.shape[:2]
+    candidates = [_clip_xywh_frame(*bbox, fw, fh), _expand_search_bbox(bbox, fw, fh)]
+    tried: set[tuple[int, int, int, int]] = set()
+    for bx, by, bw, bh in candidates:
+        if (bx, by, bw, bh) in tried:
+            continue
+        tried.add((bx, by, bw, bh))
+        roi = frame_bgr[by:by + bh, bx:bx + bw]
+        if roi.size == 0:
+            continue
+        rh, rw = roi.shape[:2]
+        rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+        res = pose.process(rgb)
+        if not res.pose_landmarks:
+            continue
+        tight = _tight_bbox_from_landmarks_global(
+            res.pose_landmarks, bx, by, rw, rh, fw, fh,
+        )
+        if tight is not None:
+            return tight
+    return None
+
+
+def _refine_full_frame_bbox(
+    frame_bgr: np.ndarray,
+    pose,
+) -> tuple[int, int, int, int] | None:
+    fh, fw = frame_bgr.shape[:2]
+    return _refine_person_bbox(frame_bgr, (0, 0, fw, fh), pose)
 
 
 def _best_context_frame(
@@ -256,13 +393,16 @@ def extract_frames_for_player(
 
     n = len(strided)
 
-    # Scores
-    combined = (
-        W_WRIST * _normalise(np.array(wrist_s)) +
-        W_ELBOW * _normalise(np.array(elbow_s)) +
-        W_SHOULDER * _normalise(np.array(shoulder_s)) +
-        W_AIRTIME * _normalise(np.array(air_s))
+    # Robust limb channels + fused burst scores — secondary contacts stay competitive.
+    limb_score = (
+        W_WRIST * _robust_unit(np.array(wrist_s)) +
+        W_ELBOW * _robust_unit(np.array(elbow_s)) +
+        W_SHOULDER * _robust_unit(np.array(shoulder_s)) +
+        W_AIRTIME * _robust_unit(np.array(air_s))
     )
+    burst_score = _wrist_elbow_burst_signal(wrist_s, elbow_s)
+    bw = IMPACT_BURST_WEIGHT
+    combined = np.clip((1.0 - bw) * limb_score + bw * burst_score, 0.0, 1.0)
 
     peaks = [
         i for i in range(1, n - 1)
@@ -274,46 +414,69 @@ def extract_frames_for_player(
 
     peaks.sort(key=lambda i: combined[i], reverse=True)
 
+    mp_pose_sol = mp.solutions.pose
+    pose_refine = mp_pose_sol.Pose(
+        static_image_mode=True,
+        model_complexity=1,
+        min_detection_confidence=0.45,
+        min_tracking_confidence=0.45,
+    )
+
     metadata = []
     last_saved = -999
 
-    for pi in peaks:
-        if len(metadata) >= max_frames:
-            break
+    try:
+        for pi in peaks:
+            if len(metadata) >= max_frames:
+                break
 
-        ctx_start = max(0, pi - CONTEXT_FRAMES)
-        ctx_end = min(n - 1, pi + CONTEXT_FRAMES)
+            ctx_start = max(0, pi - CONTEXT_FRAMES)
+            ctx_end = min(n - 1, pi + CONTEXT_FRAMES)
 
-        best_idx, best_frame, best_bbox = _best_context_frame(
-            video_path=video_path,
-            strided=strided,
-            ctx_start=ctx_start,
-            ctx_end=ctx_end,
-        )
+            best_idx, best_frame, best_bbox = _best_context_frame(
+                video_path=video_path,
+                strided=strided,
+                ctx_start=ctx_start,
+                ctx_end=ctx_end,
+            )
 
-        if best_idx is None or best_frame is None or best_idx - last_saved < min_gap_fr:
-            continue
+            if (
+                best_idx is None
+                or best_frame is None
+                or best_idx - last_saved < min_gap_fr
+            ):
+                continue
 
-        out = best_frame.copy()
+            out = best_frame.copy()
 
-        if best_bbox:
-            bx, by, bw, bh = best_bbox
+            draw_bbox = None
+            if best_bbox is not None:
+                draw_bbox = _refine_person_bbox(best_frame, best_bbox, pose_refine)
+            else:
+                draw_bbox = _refine_full_frame_bbox(best_frame, pose_refine)
+
+            if draw_bbox is None:
+                continue
+
+            bx, by, bw, bh = draw_bbox
             cv2.rectangle(out, (bx, by), (bx + bw, by + bh), (0, 255, 0), 2)
 
-        fname = f"frame_{len(metadata)}.jpg"
-        path = os.path.join(output_dir, fname)
+            fname = f"frame_{len(metadata)}.jpg"
+            path = os.path.join(output_dir, fname)
 
-        cv2.imwrite(path, out, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            cv2.imwrite(path, out, [cv2.IMWRITE_JPEG_QUALITY, 92])
 
-        metadata.append({
-            "frame_index": best_idx,
-            "timestamp": round(best_idx / fps, 2),
-            "path": f"{public_folder}/{fname}",
-            "motion_score": float(combined[pi]),
-            "tracked_bbox": best_bbox,
-        })
+            metadata.append({
+                "frame_index": best_idx,
+                "timestamp": round(best_idx / fps, 2),
+                "path": f"{public_folder}/{fname}",
+                "motion_score": float(combined[pi]),
+                "tracked_bbox": draw_bbox,
+            })
 
-        last_saved = best_idx
+            last_saved = best_idx
+    finally:
+        pose_refine.close()
 
     metadata.sort(key=lambda x: x["timestamp"])
     return metadata

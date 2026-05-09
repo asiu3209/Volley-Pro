@@ -19,13 +19,29 @@ REFERENCE_IMAGE_EXT = os.environ["REFERENCE_IMAGE_EXT"].lstrip(".")
 REFERENCE_IMAGE_COUNT = int(os.environ["REFERENCE_IMAGE_COUNT"])
 REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(os.environ["REFERENCE_IMAGE_CACHE_TTL_SECONDS"])
 
-REFERENCE_IMAGE_SETS = {
-    "blocks": "block",
-    "digs": "dig",
-    "pins": "hit",
-    "setters": "setter",
-    "serves": "serve",
+# Single source of truth: action id → (reference image basename in bucket, UI label).
+_REFERENCE_TYPES: dict[str, tuple[str, str]] = {
+    "blocks": ("block", "Block"),
+    "digs": ("dig", "Dig"),
+    "pins": ("hit", "Attack (hit)"),
+    "setters": ("setter", "Set"),
+    "serves": ("serve", "Serve"),
 }
+
+
+def action_types_public() -> list[dict[str, str]]:
+    return [
+        {"value": aid, "label": meta[1]}
+        for aid, meta in sorted(_REFERENCE_TYPES.items())
+    ]
+
+
+def action_type_label(action_id: str | None) -> str | None:
+    if not action_id:
+        return None
+    meta = _REFERENCE_TYPES.get(action_id)
+    return meta[1] if meta else None
+
 
 _reference_image_cache: dict[str, tuple[float, list[types.Part]]] = {}
 
@@ -35,7 +51,7 @@ def normalize_action_type(action_type: str | None) -> str | None:
         return None
 
     normalized = action_type.strip().lower()
-    return normalized if normalized in REFERENCE_IMAGE_SETS else None
+    return normalized if normalized in _REFERENCE_TYPES else None
 
 
 def _reference_image_set(action_type: str | None) -> tuple[str, str] | None:
@@ -43,7 +59,7 @@ def _reference_image_set(action_type: str | None) -> tuple[str, str] | None:
     if not normalized:
         return None
 
-    return normalized, REFERENCE_IMAGE_SETS[normalized]
+    return normalized, _REFERENCE_TYPES[normalized][0]
 
 
 def _reference_image_urls(folder: str, file_stem: str) -> list[str]:
@@ -331,3 +347,165 @@ Keep feedback concise but insightful.
     )
 
     return response.text
+
+
+def _video_mime(video_path: str) -> str:
+    ext = os.path.splitext(video_path.lower())[1]
+    mapping = {
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+        ".quicktime": "video/quicktime",
+    }
+    return mapping.get(ext, "video/mp4")
+
+
+def analyze_video_with_gemini(
+    video_path: str,
+    preview_image_path: str,
+    action_type: str | None = None,
+) -> str:
+    """
+    Analyze the entire clip with Gemini. Preview image is the first frame rendered with a
+    user-drawn selection box (green tint + border) — the focal athlete lies in that region.
+    """
+    action_type = normalize_action_type(action_type)
+    skill = (
+        f"The athlete performed a volleyball {action_type} (or repeats it in the clip)."
+        if action_type
+        else "The athlete performs a volleyball skill in the clip."
+    )
+    schema_action_line = (
+        f'  "action_type_out": "{action_type}",'
+        if action_type
+        else '  "action_type_out": "string — inferred skill label",'
+    )
+
+    prompt = f"""
+You are an elite volleyball coach and biomechanical movement analyst.
+
+INPUTS (in order after this prompt):
+1) A still PREVIEW IMAGE — the FIRST frame of the same video, but **already edited**:
+   the user has drawn a **bright green rectangular selection** (semi-transparent green fill
+   inside + green border). Treat that rectangle as the authoritative hint for **which single
+   player** the user wants coached.    The athlete to score is the person **primarily inside
+   that box** (or the one the box is clearly centered on if two players overlap the edge).
+   You may rely on continuity of motion, body shape/silhouette, and court position internally
+   to keep the same person in view — **do not** mention jersey numbers, printed digits,
+   hair, kit colors, ethnicity, gender, age, height, weight, facial features, or other
+   appearance labels anywhere in your JSON output (digits are unreadable/occluded/wrong often).
+2) The COMPLETE VIDEO from the beginning (same footage as the unedited first frame).
+   Analyze **only** that same identified athlete wherever they appear. Ignore unrelated
+   players for scoring unless they mechanically affect the focal athlete.
+
+{skill}
+
+RULES:
+- The green box is intentional UI. In **`identity_note`**, explain tracking only in neutral
+  terms (e.g. "followed the athlete indicated by the selection through motion continuity and
+  court positioning"), **without** claiming or guessing jersey numbers or other appearance
+  details. Elsewhere (`analysis_summary`, `final_coaching_feedback`, timeline notes, etc.)
+  refer to "**the focal athlete**" / "**the selected player**" — never describe them by
+  number, garment text, colors, hairstyle, facial features, or similar identifiers that are
+  easy to misread.
+- Match preview → athlete in video reliably (if ambiguous despite the box, say ambiguity
+  in neutral language without inventing specifics).
+- Base findings only on motion actually visible — do NOT invent contacts or angles not seen.
+- Reference images (if supplied) benchmark elite form — do not judge the refs.
+- If the clip has low resolution, occlusions, or bad angles, state limitations succinctly.
+- Do not make up any information. If you cannot find the player in the video, say so.
+
+SCORING (0–100): same rationale as biomechanics + volleyball fundamentals combined.
+
+OUTPUT ONLY valid JSON — no markdown, no code fences.
+
+Schema:
+{{
+  "identity_note": "string — brief neutral explanation of tracking the boxed athlete through the clip — NO jersey digits, readable numbers on clothing, hairstyle, ethnicity, gender, ages, kits, facial features",
+{schema_action_line}
+
+  "overall_score": 0,
+
+  "score_breakdown": {{
+    "body_positioning_posture": 0,
+    "footwork_balance": 0,
+    "arm_hand_technique": 0,
+    "timing_coordination": 0,
+    "overall_execution": 0
+  }},
+
+  "analysis_summary": "string",
+
+  "strengths": ["string"],
+  "weaknesses": ["string"],
+
+  "improvement_tips": [
+    {{ "issue": "string", "recommendation": "string", "priority": "high | medium | low" }}
+  ],
+
+  "timeline_highlights": [
+    {{ "approximate_seconds": 0.0, "technical_note": "string" }}
+  ],
+
+  "professional_comparison": {{
+    "matches_reference_well": ["string"],
+    "differs_from_reference": ["string"]
+  }},
+
+  "youtube_recommendations": [
+    {{ "title": "string", "search_query": "string", "reason": "string", "youtube_url": "string" }}
+  ],
+
+  "final_coaching_feedback": "string"
+}}
+
+Provide **3–5** timeline_highlights spaced across noteworthy moments involving the focal athlete.
+
+Provide **3–5** relevant YouTube **search_query** suggestions from major weaknesses only.
+"""
+
+    if not os.path.isfile(video_path):
+        raise FileNotFoundError(f"Video missing: {video_path}")
+    if not os.path.isfile(preview_image_path):
+        raise FileNotFoundError(f"Preview missing: {preview_image_path}")
+
+    contents: list = [prompt]
+
+    preview_mime = mimetypes.guess_type(preview_image_path)[0] or "image/jpeg"
+    video_mime = _video_mime(video_path)
+
+    with open(preview_image_path, "rb") as f:
+        preview_bytes = f.read()
+    with open(video_path, "rb") as f:
+        video_bytes = f.read()
+
+    contents.append(
+        "PREVIEW IMAGE — first frame of the video WITH user-drawn green selection box "
+        "around the athlete to analyze (same timestamp as clip start)."
+    )
+    contents.append(types.Part.from_bytes(data=preview_bytes, mime_type=preview_mime))
+    contents.append(
+        "FULL VIDEO — analyze only that athlete everywhere they appear."
+    )
+    contents.append(types.Part.from_bytes(data=video_bytes, mime_type=video_mime))
+
+    reference_parts = _get_reference_image_parts(action_type)
+    if reference_parts:
+        contents.append(
+            "Reference stills showing elite volleyball form for this skill archetype:"
+        )
+        contents.extend(reference_parts)
+        contents.append(
+            "Contrast the focal athlete throughout the VIDEO against references where applicable."
+        )
+    else:
+        contents.append(
+            "Reference stills unavailable — use standard biomechanically sound volleyball."
+        )
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=contents,
+    )
+
+    return response.text or "{}"
