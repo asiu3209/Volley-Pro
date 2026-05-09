@@ -111,30 +111,204 @@ def analyze_frames_with_gemini(
     )
 
     prompt = f"""
-You are an expert volleyball coach analyzing a player's technique.
+You are an elite volleyball coach and biomechanical movement analyst.
+
+Your task is to analyze sequential volleyball frames of a player and compare the player's form against professional reference images.
 
 {skill_context}
 
-Review these sequential frames and provide feedback on:
-1. Body positioning and posture
-2. Arm and hand technique
-3. Footwork and balance
-4. Timing and execution
-5. Key improvements
+IMPORTANT ANALYSIS RULES:
+- Analyze ONLY usable frames.
+- Skip frames that are:
+  - blurry
+  - too dark
+  - cropped incorrectly
+  - duplicated
+  - missing key body parts
+  - player out of frame
+  - impossible to evaluate
+- Ignore low-quality frames completely.
+- Base conclusions ONLY on visible evidence.
+- Do NOT hallucinate movements not visible in the frames.
+- Be objective, technical, and concise.
 
-Be concise and actionable.
+--------------------------------------------------
+SCORING SYSTEM (0-100)
+--------------------------------------------------
+
+Score the player using the following weighted rubric:
+
+1. Body Positioning & Posture (25 points)
+- spine alignment
+- athletic stance
+- hip positioning
+- shoulder posture
+
+2. Footwork & Balance (20 points)
+- balance
+- approach mechanics
+- landing control
+- weight transfer
+
+3. Arm Swing / Hand Technique (20 points)
+- arm mechanics
+- elbow positioning
+- wrist contact
+- hand control
+
+4. Timing & Coordination (20 points)
+- sequencing
+- jump timing
+- contact timing
+- synchronization
+
+5. Overall Athletic Execution (15 points)
+- fluidity
+- explosiveness
+- consistency
+- confidence
+
+TOTAL SCORE = sum of all categories out of 100.
+
+SCORING GUIDELINES:
+90-100 = elite / near professional
+80-89 = very strong technique
+70-79 = solid but noticeable weaknesses
+60-69 = inconsistent mechanics
+40-59 = major technical flaws
+0-39 = poor execution
+
+--------------------------------------------------
+OUTPUT REQUIREMENTS
+--------------------------------------------------
+
+Return ONLY valid JSON.
+Do NOT include markdown.
+Do NOT include explanation text outside JSON.
+Do NOT wrap JSON in triple backticks.
+
+The JSON response MUST follow this exact schema:
+
+{{
+  "action_type": "string",
+
+  "overall_score": 0,
+
+  "score_breakdown": {{
+    "body_positioning_posture": 0,
+    "footwork_balance": 0,
+    "arm_hand_technique": 0,
+    "timing_coordination": 0,
+    "overall_execution": 0
+  }},
+
+  "analysis_summary": "string",
+
+  "strengths": [
+    "string",
+    "string"
+  ],
+
+  "weaknesses": [
+    "string",
+    "string"
+  ],
+
+  "improvement_tips": [
+    {{
+      "issue": "string",
+      "recommendation": "string",
+      "priority": "high | medium | low"
+    }}
+  ],
+
+  "frame_analysis": [
+    {{
+      "frame_index": 0,
+      "usable": true,
+      "observations": [
+        "string"
+      ]
+    }}
+  ],
+
+  "professional_comparison": {{
+    "matches_reference_well": [
+      "string"
+    ],
+    "differs_from_reference": [
+      "string"
+    ]
+  }},
+
+  "youtube_recommendations": [
+    {{
+      "title": "string",
+      "search_query": "string",
+      "reason": "string"
+    }}
+  ],
+
+  "final_coaching_feedback": "string"
+}}
+
+--------------------------------------------------
+YOUTUBE RECOMMENDATION RULES
+--------------------------------------------------
+
+Provide 3-5 highly relevant YouTube search recommendations based on the player's biggest weaknesses.
+
+Examples:
+- "Volleyball hitting approach footwork drill"
+- "How to improve volleyball arm swing mechanics"
+- "Volleyball jump timing tutorial"
+
+The recommendations should directly target the detected flaws.
+
+--------------------------------------------------
+FRAME ANALYSIS RULES
+--------------------------------------------------
+
+For every frame:
+- determine if usable = true/false
+- if false, briefly explain why
+- if true, include technical observations
+
+--------------------------------------------------
+ANALYSIS STYLE
+--------------------------------------------------
+
+Your coaching feedback should:
+- sound professional
+- be specific
+- be actionable
+- focus on biomechanics and volleyball fundamentals
+- avoid generic advice
+
+Keep feedback concise but insightful.
 """
+
     contents = [prompt]
+
     reference_parts = _get_reference_image_parts(action_type)
 
     if reference_parts:
         contents.append(
-            "Use the next images as ideal volleyball form references for comparison. "
-            "Do not critique the reference images; use them only as the standard."
+            "The next images are professional volleyball reference forms. "
+            "Use them as the gold standard for comparison. "
+            "Do not critique the reference images."
         )
+
         contents.extend(reference_parts)
+
         contents.append(
-            "Now analyze the user's sequential frames below against those references."
+            "Now analyze the user's sequential volleyball frames against the professional references."
+        )
+
+    else:
+        contents.append(
+            "No professional reference images are available. "
+            "Analyze the user's sequential volleyball frames using standard volleyball biomechanics."
         )
 
     for path in frame_paths:
