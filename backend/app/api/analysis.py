@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from app.services.gemini import analyze_frames_with_gemini
+from app.services.gemini import analyze_frames_with_gemini, normalize_action_type
 
 router = APIRouter()
 
@@ -20,6 +20,7 @@ class AnalysisRequest(BaseModel):
 # =========================
 @router.post("/analyze-ai")
 def analyze_frames(request: AnalysisRequest):
+    action_type = normalize_action_type(request.action_type)
 
     # validate input
     if not request.frame_paths:
@@ -32,11 +33,11 @@ def analyze_frames(request: AnalysisRequest):
         # call Gemini service
         feedback = analyze_frames_with_gemini(
             request.frame_paths,
-            request.action_type
+            action_type
         )
 
         return {
-            "action_type": request.action_type,
+            "action_type": action_type,
             "frames_analyzed": len(request.frame_paths),
             "feedback": feedback,
         }

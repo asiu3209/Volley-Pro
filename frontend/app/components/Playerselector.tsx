@@ -3,6 +3,9 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { backendAssetUrl } from "../lib/backendUrl";
 
+const PREVIEW_MAX_WIDTH = 640;
+const PREVIEW_MAX_HEIGHT = 420;
+
 interface Rect {
   x: number; // fraction of image width  (0–1)
   y: number;
@@ -39,9 +42,12 @@ export default function PlayerSelector({
     img.onload = () => {
       imageRef.current = img;
 
-      // Fit inside 700 px wide while preserving aspect ratio
-      const maxW = 700;
-      const scale = Math.min(1, maxW / img.naturalWidth);
+      // Keep the selection preview compact while preserving aspect ratio.
+      const scale = Math.min(
+        1,
+        PREVIEW_MAX_WIDTH / img.naturalWidth,
+        PREVIEW_MAX_HEIGHT / img.naturalHeight,
+      );
       canvas.width = img.naturalWidth * scale;
       canvas.height = img.naturalHeight * scale;
 
@@ -150,8 +156,8 @@ export default function PlayerSelector({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="w-full max-w-3xl rounded-2xl bg-neutral-900 p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-neutral-900 p-6 shadow-xl">
         <h2 className="text-xl font-semibold text-white mb-1">
           Select the player to track
         </h2>
@@ -161,11 +167,11 @@ export default function PlayerSelector({
         </p>
 
         {/* Canvas */}
-        <div className="overflow-hidden rounded-lg border border-neutral-700">
+        <div className="flex justify-center overflow-hidden rounded-lg border border-neutral-700 bg-black">
           <canvas
             ref={canvasRef}
-            className="w-full cursor-crosshair select-none"
-            style={{ display: "block" }}
+            className="max-h-[420px] max-w-full cursor-crosshair select-none"
+            style={{ display: "block", height: "auto" }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}

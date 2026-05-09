@@ -8,7 +8,7 @@ frames = [
 
 result = analyze_frames_with_gemini(
     frame_paths=frames,
-    action_type="passing"
+    action_type="digs"
 )
 
 print("\nGEMINI RESULT:\n")
