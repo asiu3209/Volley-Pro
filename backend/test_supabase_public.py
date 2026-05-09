@@ -6,9 +6,11 @@ SUPABASE_PROJECT_URL = "https://fnrtdpztqorlxobnjupz.supabase.co"
 BUCKET = "reference-images"
 
 image_paths = [
-    "setters/setter1.png",
-    "setters/setter2.png",
-    "setters/setter3.png"
+    "blocks/block1.webp",
+    "digs/dig1.webp",
+    "pins/hit1.webp",
+    "setters/setter1.webp",
+    "serves/serve1.webp"
 ]
 
 def build_url(path):

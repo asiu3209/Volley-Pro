@@ -30,17 +30,17 @@ REFERENCE_IMAGE_SETS = {
 _reference_image_cache: dict[str, tuple[float, list[types.Part]]] = {}
 
 
-def _normalize_action_type(action_type: str | None) -> str | None:
+def normalize_action_type(action_type: str | None) -> str | None:
     if not action_type:
         return None
 
-    normalized = action_type.strip().lower().replace("_", " ").replace("-", " ")
-    return normalized.split()[0] if normalized else None
+    normalized = action_type.strip().lower()
+    return normalized if normalized in REFERENCE_IMAGE_SETS else None
 
 
 def _reference_image_set(action_type: str | None) -> tuple[str, str] | None:
-    normalized = _normalize_action_type(action_type)
-    if not normalized or normalized not in REFERENCE_IMAGE_SETS:
+    normalized = normalize_action_type(action_type)
+    if not normalized:
         return None
 
     return normalized, REFERENCE_IMAGE_SETS[normalized]
@@ -102,6 +102,7 @@ def analyze_frames_with_gemini(
     frame_paths: list[str],
     action_type: str | None = None
 ) -> str:
+    action_type = normalize_action_type(action_type)
 
     skill_context = (
         f"The player is performing a volleyball {action_type}."
