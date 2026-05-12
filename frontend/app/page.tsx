@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import UploadVideo from "./components/UploadVideo/UploadVideo";
 import PlayerSelector from "./components/Playerselector";
-import { backendApiUrl, backendAssetUrl } from "./lib/backendUrl";
+import { backendAssetUrl } from "./lib/backendUrl";
+import { getToken, getUser, clearAuth } from "./lib/auth";
+import type { AuthUser } from "./lib/auth";
 
 interface Rect {
   x: number;
@@ -11,6 +14,26 @@ interface Rect {
   w: number;
   h: number;
 }
+
+interface UserStats {
+  total_videos: number;
+  avg_score: number;
+}
+
+interface SkillStat {
+  skill: string;
+  attempts: number;
+  avg_score: number;
+}
+
+interface VideoEntry {
+  id: string;
+  skill_type: string | null;
+  ai_score: number | null;
+  created_at: string;
+}
+
+const EMPTY_STATS: UserStats = { total_videos: 0, avg_score: 0 };
 
 type AppState =
   | { stage: "idle" }
@@ -205,50 +228,62 @@ function DoneCoachingSummary({ raw }: { raw: string }) {
 }
 
 export default function VolleyProDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>({ stage: "idle" });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [userStats, setUserStats] = useState<UserStats>(EMPTY_STATS);
+  const [recentVideos, setRecentVideos] = useState<VideoEntry[]>([]);
+  const [skillStats, setSkillStats] = useState<SkillStat[]>([]);
+
+  useEffect(() => {
+    const token = getToken();
+    const storedUser = getUser();
+    if (!token || !storedUser) {
+      router.replace("/login");
+      return;
+    }
+    setUser(storedUser);
+    fetchUserData(token);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchUserData(token: string) {
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const [statsRes, videosRes, skillRes] = await Promise.all([
+        fetch("/api/users/stats", { headers }),
+        fetch("/api/users/videos", { headers }),
+        fetch("/api/users/skill-stats", { headers }),
+      ]);
+      if (statsRes.ok) {
+        setUserStats((await statsRes.json()) as UserStats);
+      }
+      if (videosRes.ok) {
+        const v = (await videosRes.json()) as { videos: VideoEntry[] };
+        setRecentVideos(v.videos);
+      }
+      if (skillRes.ok) {
+        const sk = (await skillRes.json()) as { skill_stats: SkillStat[] };
+        setSkillStats(sk.skill_stats);
+      }
+    } catch {
+      /* ignore — stale data is fine */
+    }
+  }
+
+  function handleLogout() {
+    clearAuth();
+    router.replace("/login");
+  }
 
   const navigationItems = [
     { id: "dashboard", label: "Dashboard" },
     { id: "stats", label: "Statistics" },
     { id: "training", label: "Training" },
     { id: "analysis", label: "Analysis" },
-  ];
-
-  const recentVideos = [
-    {
-      id: 1,
-      title: "Spike Technique - Practice",
-      skill: "Spike",
-      date: "2024-01-15",
-      status: "completed",
-      score: 8.5,
-    },
-    {
-      id: 2,
-      title: "Serve Analysis",
-      skill: "Serve",
-      date: "2024-01-14",
-      status: "analyzing",
-      score: null,
-    },
-    {
-      id: 3,
-      title: "Block Training",
-      skill: "Block",
-      date: "2024-01-13",
-      status: "completed",
-      score: 7.8,
-    },
-  ];
-
-  const statsData = [
-    { skill: "Serve", attempts: 150, success: 127, rate: 84.7 },
-    { skill: "Spike", attempts: 200, success: 156, rate: 78.0 },
-    { skill: "Block", attempts: 180, success: 142, rate: 78.9 },
-    { skill: "Dig", attempts: 220, success: 189, rate: 85.9 },
   ];
 
   const tips = [
@@ -272,17 +307,22 @@ export default function VolleyProDashboard() {
     },
   ];
 
-  // ── Step 1: upload ──────────────────────────────────────────────────────────
   async function handleUpload(file: File) {
     setUploadOpen(false);
     setAppState({ stage: "uploading" });
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      const res = await fetch(backendApiUrl("videos/upload"), {
+      const res = await fetch("/api/uploadVideo", {
         method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const data = await res.json();
@@ -309,10 +349,19 @@ export default function VolleyProDashboard() {
     if (appState.stage !== "selecting") return;
     const { videoFilename, videoId, previewFrame } = appState;
     setAppState({ stage: "analyzing" });
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           video_id: videoId,
           video_filename: videoFilename,
@@ -347,10 +396,7 @@ export default function VolleyProDashboard() {
             overall_score?: unknown;
           };
           if (typeof parsed.overall_score === "number") {
-            scoreUi = Math.max(
-              0,
-              Math.min(10, parsed.overall_score / 10),
-            );
+            scoreUi = Math.max(0, Math.min(10, parsed.overall_score / 10));
           }
         } catch {
           /* fallback: show raw text only */
@@ -365,6 +411,8 @@ export default function VolleyProDashboard() {
         action_type: data.action_type ?? actionType ?? null,
         action_label: data.action_label ?? null,
       });
+
+      fetchUserData(token);
     } catch {
       setAppState({
         stage: "error",
@@ -376,6 +424,8 @@ export default function VolleyProDashboard() {
   function reset() {
     setAppState({ stage: "idle" });
   }
+
+  if (!user) return null;
 
   return (
     <div className="flex h-screen bg-gray-900">
@@ -420,7 +470,10 @@ export default function VolleyProDashboard() {
           <button className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left">
             {sidebarOpen && <span>Settings</span>}
           </button>
-          <button className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left">
+          <button
+            onClick={handleLogout}
+            className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left"
+          >
             {sidebarOpen && <span>Logout</span>}
           </button>
         </div>
@@ -435,7 +488,7 @@ export default function VolleyProDashboard() {
                 {navigationItems.find((i) => i.id === activeTab)?.label}
               </h2>
               <p className="text-gray-300 mt-1">
-                Track, analyze, and improve your volleyball skills
+                Welcome back, {user.name}
               </p>
             </div>
             <button
@@ -549,20 +602,36 @@ export default function VolleyProDashboard() {
             {/* Stats cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="bg-teal-500 text-white p-6 rounded-2xl shadow-lg">
-                <div className="text-3xl font-bold mb-1">24</div>
+                <div className="text-3xl font-bold mb-1">
+                  {userStats.total_videos}
+                </div>
                 <div className="text-white/80">Videos Analyzed</div>
               </div>
               <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg">
-                <div className="text-3xl font-bold mb-1">81.5%</div>
-                <div className="text-white/80">Overall Success Rate</div>
+                <div className="text-3xl font-bold mb-1">
+                  {userStats.total_videos > 0
+                    ? userStats.avg_score.toFixed(1)
+                    : "—"}
+                </div>
+                <div className="text-white/80">Avg AI Score (0–10)</div>
               </div>
               <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-2xl shadow-lg">
-                <div className="text-3xl font-bold mb-1">12</div>
-                <div className="text-white/80">Training Sessions</div>
+                <div className="text-3xl font-bold mb-1">
+                  {skillStats.length > 0 ? skillStats.length : "—"}
+                </div>
+                <div className="text-white/80">Skills Tracked</div>
               </div>
               <div className="bg-sky-600 text-white p-6 rounded-2xl shadow-lg">
-                <div className="text-3xl font-bold mb-1">8.2</div>
-                <div className="text-white/80">Average Score</div>
+                <div className="text-3xl font-bold mb-1">
+                  {skillStats.length > 0
+                    ? skillStats.reduce(
+                        (best, s) =>
+                          s.avg_score > best.avg_score ? s : best,
+                        skillStats[0],
+                      ).skill
+                    : "—"}
+                </div>
+                <div className="text-white/80">Top Skill</div>
               </div>
             </div>
 
@@ -573,46 +642,52 @@ export default function VolleyProDashboard() {
                   <h3 className="text-xl font-bold text-gray-100">
                     Recent Videos
                   </h3>
-                  <button className="text-orange-600 font-semibold text-sm">
-                    View All
-                  </button>
                 </div>
-                <div className="space-y-4">
-                  {recentVideos.map((v) => (
-                    <div
-                      key={v.id}
-                      className="border-l-4 border-orange-500 flex items-center justify-between p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl cursor-pointer"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shrink-0" />
-                        <div>
-                          <h4 className="font-semibold text-gray-100">
-                            {v.title}
-                          </h4>
-                          <div className="flex items-center space-x-3 mt-1 text-sm text-gray-100">
-                            <span>{v.skill}</span>
-                            <span className="text-gray-400">•</span>
-                            <span>{v.date}</span>
+                {recentVideos.length === 0 ? (
+                  <p className="text-gray-400 text-sm">
+                    No videos yet. Submit your first video to get started!
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {recentVideos.slice(0, 3).map((v) => (
+                      <div
+                        key={v.id}
+                        className="border-l-4 border-orange-500 flex items-center justify-between p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shrink-0" />
+                          <div>
+                            <h4 className="font-semibold text-gray-100">
+                              {v.skill_type
+                                ? v.skill_type.charAt(0).toUpperCase() +
+                                  v.skill_type.slice(1)
+                                : "Video"}
+                            </h4>
+                            <div className="flex items-center space-x-3 mt-1 text-sm text-gray-100">
+                              <span>
+                                {new Date(v.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-right shrink-0">
+                          {v.ai_score !== null ? (
+                            <>
+                              <div className="text-2xl font-bold text-green-400">
+                                {v.ai_score.toFixed(1)}
+                              </div>
+                              <div className="text-xs text-gray-300">Score</div>
+                            </>
+                          ) : (
+                            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
+                              Processing
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        {v.status === "completed" ? (
-                          <>
-                            <div className="text-2xl font-bold text-green-400">
-                              {v.score}
-                            </div>
-                            <div className="text-xs text-gray-300">Score</div>
-                          </>
-                        ) : (
-                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
-                            Analyzing…
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-800 rounded-2xl p-6">
@@ -659,27 +734,95 @@ export default function VolleyProDashboard() {
               <h3 className="text-xl font-bold text-gray-100 mb-6">
                 Performance Overview
               </h3>
-              <div className="space-y-4">
-                {statsData.map((s) => (
-                  <div key={s.skill} className="p-4 bg-gray-700 rounded-xl">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-100">{s.skill}</h4>
-                      <span className="text-2xl font-bold text-orange-600">
-                        {s.rate}%
-                      </span>
+              {skillStats.length === 0 ? (
+                <p className="text-gray-400 text-sm">
+                  No skill data yet. Analyze some videos to see your stats here.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {skillStats.map((s) => (
+                    <div key={s.skill} className="p-4 bg-gray-700 rounded-xl">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-gray-100">
+                          {s.skill.charAt(0).toUpperCase() + s.skill.slice(1)}
+                        </h4>
+                        <span className="text-2xl font-bold text-orange-600">
+                          {s.avg_score.toFixed(1)}/10
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-200 mb-2">
+                        {s.attempts} video{s.attempts !== 1 ? "s" : ""} analyzed
+                      </p>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full"
+                          style={{ width: `${(s.avg_score / 10) * 100}%` }}
+                        />
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-200 mb-2">
-                      {s.success} / {s.attempts} successful
-                    </p>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full"
-                        style={{ width: `${s.rate}%` }}
-                      />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "training" && (
+          <div className="p-6">
+            <div className="bg-gray-800 rounded-2xl p-6">
+              <h3 className="text-xl font-bold text-gray-100 mb-4">
+                Training Plans
+              </h3>
+              <p className="text-gray-400 text-sm">
+                Personalized training plans based on your analysis will appear
+                here as you submit more videos.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "analysis" && (
+          <div className="p-6">
+            <div className="bg-gray-800 rounded-2xl p-6">
+              <h3 className="text-xl font-bold text-gray-100 mb-4">
+                Video Analysis History
+              </h3>
+              {recentVideos.length === 0 ? (
+                <p className="text-gray-400 text-sm">
+                  No analyses yet. Submit a video from the Dashboard to get
+                  started.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {recentVideos.map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center justify-between p-4 bg-gray-700 rounded-xl"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-100">
+                          {v.skill_type
+                            ? v.skill_type.charAt(0).toUpperCase() +
+                              v.skill_type.slice(1)
+                            : "Unknown skill"}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(v.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {v.ai_score !== null ? (
+                          <span className="text-lg font-bold text-orange-400">
+                            {v.ai_score.toFixed(1)}/10
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
