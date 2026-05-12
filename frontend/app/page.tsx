@@ -5,6 +5,13 @@ import UploadVideo from "./components/UploadVideo/UploadVideo";
 import PlayerSelector from "./components/Playerselector";
 import { backendApiUrl, backendAssetUrl } from "./lib/backendUrl";
 
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 type AppState =
   | { stage: "idle" }
   | { stage: "uploading" }
@@ -15,26 +22,22 @@ type AppState =
       videoId: string;
     }
   | { stage: "analyzing" }
-  | { stage: "done"; frames: FrameMeta[] }
+  | {
+      stage: "done";
+      previewFrame: string;
+      gemini_feedback: string;
+      overall_score_0_to_10: number | null;
+      action_type: string | null;
+      action_label: string | null;
+    }
   | { stage: "error"; message: string };
 
-interface FrameMeta {
-  frame_index: number;
-  timestamp: number;
-  path: string;
-  motion_score: number;
-  tracked_bbox: [number, number, number, number] | null;
-}
-
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-function frameProxyUrl(path: string): string {
-  return backendAssetUrl(`frames/${path}`);
+function stripJsonFences(raw: string): string {
+  let t = raw.trim();
+  if (t.startsWith("```")) {
+    t = t.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+  }
+  return t.trim();
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -54,6 +57,151 @@ function errorMessage(error: unknown, fallback: string): string {
     return String(error.msg);
   }
   return fallback;
+}
+
+type CoachingPayload = Record<string, unknown>;
+
+function nonEmptyStrings(val: unknown): string[] {
+  if (!Array.isArray(val)) return [];
+  return val.filter((x): x is string => typeof x === "string" && x.trim() !== "");
+}
+
+function DoneCoachingSummary({ raw }: { raw: string }) {
+  let data: CoachingPayload | null = null;
+  try {
+    data = JSON.parse(stripJsonFences(raw)) as CoachingPayload;
+  } catch {
+    data = null;
+  }
+
+  if (!data) {
+    return (
+      <div className="rounded-xl border border-gray-700 bg-gray-950 p-4">
+        <p className="mb-2 text-sm text-gray-400">
+          Raw model response (could not parse as JSON):
+        </p>
+        <pre className="max-h-[min(560px,60vh)] overflow-auto whitespace-pre-wrap break-words text-xs text-gray-200">
+          {raw}
+        </pre>
+      </div>
+    );
+  }
+
+  const identity =
+    typeof data.identity_note === "string" ? data.identity_note.trim() : "";
+  const summary =
+    typeof data.analysis_summary === "string"
+      ? data.analysis_summary.trim()
+      : "";
+  const finalFb =
+    typeof data.final_coaching_feedback === "string"
+      ? data.final_coaching_feedback.trim()
+      : "";
+  const strengths = nonEmptyStrings(data.strengths);
+  const weaknesses = nonEmptyStrings(data.weaknesses);
+  const highlightsRaw = Array.isArray(data.timeline_highlights)
+    ? data.timeline_highlights
+    : [];
+  const highlights = highlightsRaw.filter(
+    (h): h is Record<string, unknown> =>
+      h !== null && typeof h === "object" && !Array.isArray(h),
+  );
+
+  return (
+    <div className="space-y-5">
+      {identity ? (
+        <section className="rounded-xl border border-gray-700 bg-gray-800/80 p-4">
+          <h4 className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+            Athlete identification
+          </h4>
+          <p className="text-sm text-gray-200">{identity}</p>
+        </section>
+      ) : null}
+
+      {summary ? (
+        <section className="rounded-xl border border-gray-700 bg-gray-800/80 p-4">
+          <h4 className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+            Summary
+          </h4>
+          <p className="text-sm leading-relaxed text-gray-100">{summary}</p>
+        </section>
+      ) : null}
+
+      {(strengths.length > 0 || weaknesses.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {strengths.length > 0 && (
+            <section className="rounded-xl border border-emerald-900/50 bg-emerald-950/30 p-4">
+              <h4 className="mb-2 text-xs uppercase tracking-wide text-emerald-400">
+                Strengths
+              </h4>
+              <ul className="list-disc space-y-1 pl-4 text-sm text-gray-100">
+                {strengths.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {weaknesses.length > 0 && (
+            <section className="rounded-xl border border-amber-900/50 bg-amber-950/25 p-4">
+              <h4 className="mb-2 text-xs uppercase tracking-wide text-amber-400">
+                Weaknesses
+              </h4>
+              <ul className="list-disc space-y-1 pl-4 text-sm text-gray-100">
+                {weaknesses.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      )}
+
+      {highlights.length > 0 ? (
+        <section className="rounded-xl border border-gray-700 bg-gray-800/80 p-4">
+          <h4 className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+            Timeline highlights
+          </h4>
+          <ul className="space-y-3 text-sm text-gray-200">
+            {highlights.map((h, i) => {
+              const sec = typeof h.approximate_seconds === "number"
+                ? h.approximate_seconds
+                : null;
+              const note =
+                typeof h.technical_note === "string" ? h.technical_note : "";
+              return (
+                <li key={i} className="border-l-2 border-indigo-500 pl-3">
+                  {sec !== null ? (
+                    <span className="mr-2 font-mono text-indigo-300">
+                      ~{sec.toFixed(1)}s
+                    </span>
+                  ) : null}
+                  {note || JSON.stringify(h)}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {finalFb ? (
+        <section className="rounded-xl border border-indigo-900/60 bg-indigo-950/30 p-4">
+          <h4 className="mb-2 text-xs uppercase tracking-wide text-indigo-400">
+            Final coaching feedback
+          </h4>
+          <p className="text-sm leading-relaxed text-gray-100">{finalFb}</p>
+        </section>
+      ) : null}
+
+      <details className="rounded-xl border border-gray-700 bg-gray-950/60 p-3 text-xs text-gray-500">
+        <summary className="cursor-pointer select-none text-gray-400">
+          View full JSON
+        </summary>
+        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      </details>
+    </div>
+  );
 }
 
 export default function VolleyProDashboard() {
@@ -157,23 +305,23 @@ export default function VolleyProDashboard() {
     }
   }
 
-  // ── Step 2: player bbox confirmed → analyse ─────────────────────────────────
-  async function handlePlayerSelected(bbox: Rect) {
+  async function handleAnalyzeConfirmed(bbox: Rect, actionType: string) {
     if (appState.stage !== "selecting") return;
-    const { videoFilename, videoId } = appState;
+    const { videoFilename, videoId, previewFrame } = appState;
     setAppState({ stage: "analyzing" });
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          video_id: videoId,
+          video_filename: videoFilename,
+          preview_frame: previewFrame,
           bbox_x: bbox.x,
           bbox_y: bbox.y,
           bbox_w: bbox.w,
           bbox_h: bbox.h,
-          video_id: videoId,
-          video_filename: videoFilename,
-          max_frames: 8,
+          action_type: actionType,
         }),
       });
       const data = await res.json();
@@ -185,9 +333,37 @@ export default function VolleyProDashboard() {
         return;
       }
 
+      const rawFeedback =
+        typeof data.gemini_feedback === "string" ? data.gemini_feedback : "";
+      let scoreUi: number | null = null;
+      if (
+        typeof data.overall_score_0_to_10 === "number" &&
+        Number.isFinite(data.overall_score_0_to_10)
+      ) {
+        scoreUi = data.overall_score_0_to_10;
+      } else {
+        try {
+          const parsed = JSON.parse(stripJsonFences(rawFeedback)) as {
+            overall_score?: unknown;
+          };
+          if (typeof parsed.overall_score === "number") {
+            scoreUi = Math.max(
+              0,
+              Math.min(10, parsed.overall_score / 10),
+            );
+          }
+        } catch {
+          /* fallback: show raw text only */
+        }
+      }
+
       setAppState({
         stage: "done",
-        frames: data.frames,
+        previewFrame,
+        gemini_feedback: rawFeedback,
+        overall_score_0_to_10: scoreUi,
+        action_type: data.action_type ?? actionType ?? null,
+        action_label: data.action_label ?? null,
       });
     } catch {
       setAppState({
@@ -207,7 +383,7 @@ export default function VolleyProDashboard() {
       {appState.stage === "selecting" && (
         <PlayerSelector
           previewFramePath={appState.previewFrame}
-          onConfirm={handlePlayerSelected}
+          onConfirm={handleAnalyzeConfirmed}
           onCancel={reset}
         />
       )}
@@ -306,7 +482,7 @@ export default function VolleyProDashboard() {
                 </svg>
                 {appState.stage === "uploading" ? "Uploading video…" : ""}
                 {appState.stage === "analyzing"
-                  ? "Tracking player and finding key frames…"
+                  ? "Sending full clip to Gemini (may take a minute)…"
                   : ""}
               </div>
             )}
@@ -323,17 +499,19 @@ export default function VolleyProDashboard() {
               </div>
             )}
 
-            {/* Extracted frames */}
             {appState.stage === "done" && (
               <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-xl font-bold text-gray-100">
-                    Action Frames
-                    <span className="ml-3 text-sm font-normal text-gray-400">
-                      ({appState.frames.length} keyframes)
-                    </span>
+                    Coaching report
+                    {appState.action_label ? (
+                      <span className="ml-3 text-sm font-normal text-indigo-300">
+                        · {appState.action_label}
+                      </span>
+                    ) : null}
                   </h3>
                   <button
+                    type="button"
                     onClick={reset}
                     className="text-sm text-orange-500 hover:text-orange-400"
                   >
@@ -341,43 +519,30 @@ export default function VolleyProDashboard() {
                   </button>
                 </div>
 
-                {appState.frames.length === 0 ? (
-                  <p className="text-gray-400">
-                    No high-motion frames detected. Try drawing a tighter box
-                    around the player, or use a clip where the player is active.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {appState.frames.map((frame, i) => (
-                      <div
-                        key={i}
-                        className="bg-gray-800 rounded-xl overflow-hidden"
-                      >
-                        <img
-                          src={frameProxyUrl(frame.path)}
-                          alt={`Action at ${frame.timestamp}s`}
-                          className="w-full object-cover"
-                        />
-                        <div className="p-2">
-                          <p className="text-xs text-gray-300">
-                            t = {frame.timestamp}s
-                          </p>
-                          <div className="mt-1 h-1.5 rounded-full bg-gray-700">
-                            <div
-                              className="h-1.5 rounded-full bg-orange-500 transition-all"
-                              style={{
-                                width: `${Math.round(frame.motion_score * 100)}%`,
-                              }}
-                            />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Impact {Math.round(frame.motion_score * 100)}%
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,260px)_1fr]">
+                  <div className="rounded-xl border border-gray-700 bg-gray-800/60 p-3">
+                    <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+                      Athlete preview
+                    </p>
+                    <img
+                      src={backendAssetUrl(appState.previewFrame)}
+                      alt=""
+                      className="w-full rounded-lg object-cover"
+                    />
+                    {typeof appState.overall_score_0_to_10 === "number" && (
+                      <p className="mt-4 text-center text-lg font-semibold text-orange-400">
+                        Overall ~{appState.overall_score_0_to_10.toFixed(1)}/10
+                        <span className="ml-1 text-xs font-normal text-gray-500">
+                          from model 0–100
+                        </span>
+                      </p>
+                    )}
                   </div>
-                )}
+
+                  <div className="min-w-0 space-y-4">
+                    <DoneCoachingSummary raw={appState.gemini_feedback} />
+                  </div>
+                </div>
               </div>
             )}
 
