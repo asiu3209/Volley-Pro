@@ -22,7 +22,7 @@ REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(os.environ["REFERENCE_IMAGE_CACHE_TTL_SE
 
 _REFERENCE_TYPES: dict[str, tuple[str, str]] = {
     "blocks": ("block", "Block"),
-    "digs": ("dig", "Dig"),
+    "digs": ("dig", "Dig/Pass"),
     "pins": ("hit", "Attack (hit)"),
     "setters": ("setter", "Set"),
     "serves": ("serve", "Serve"),
@@ -175,7 +175,7 @@ def _build_video_prompt(action_type: str | None) -> str:
         if action_type
         else '  "action_type_out": "string (inferred skill)",'
     )
-    return f"""You are an elite volleyball coach and movement analyst.
+    return f"""You are an elite volleyball coach, movement analyst, performance analyst, and a volleyball form coach.
 
 AFTER THIS TEXT you receive:
 1) A JPEG preview: first frame of the video with a **green box** drawn on it — analyse only **that athlete** everywhere in the clip (match via motion continuity, silhouette, role; never identify them by jersey number, garment text, hair, kit colour, ethnicity, gender, age, or similar in JSON).
@@ -236,6 +236,7 @@ YouTube rules:
 - Forbidden: youtube search URLs, playlists-only links, shortened links you are unsure of, fabricated ids, channel homepages (`/c/`, `/@`), or placeholders.
 - If you do not confidently know a **real** video id from ALLOWED_CHANNELS, **omit that entry** (return fewer recommendations) rather than guessing.
 - Provide a Maximum of 1-2 recommendations. If you cannot find any good recommendations, returning a good search query hyperlink to youtube can be an alternative, but prioritize providing specific recommendations if possible.
+- You are allowed to find more than 2 recoomendations but only return the 2 videos that have the most recent upload or recent release.
 """
 
 

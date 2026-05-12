@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { backendApiUrl, backendAssetUrl } from "../lib/backendUrl";
+
+import { clientAssetUrl } from "@/app/lib/clientAssetUrl";
 
 export interface ActionTypeOption {
   value: string;
@@ -19,13 +20,14 @@ const PREVIEW_MAX_WIDTH = 640;
 const PREVIEW_MAX_HEIGHT = 420;
 
 interface Props {
-  previewFramePath: string;
+  /** Basename or key for `/api/asset` (not the Python host URL). */
+  previewFrameKey: string;
   onConfirm: (bbox: Rect, actionType: string) => void;
   onCancel: () => void;
 }
 
 export default function PlayerSelector({
-  previewFramePath,
+  previewFrameKey,
   onConfirm,
   onCancel,
 }: Props) {
@@ -41,13 +43,13 @@ export default function PlayerSelector({
   const [actionsError, setActionsError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(backendApiUrl("videos/action-types"))
+    fetch("/api/videos/action-types")
       .then(async (r) => {
         if (!r.ok) throw new Error("bad response");
-        return r.json() as Promise<{ action_types: ActionTypeOption[] }>;
+        return r.json() as Promise<{ actionTypes: ActionTypeOption[] }>;
       })
       .then((d) => {
-        const opts = d.action_types ?? [];
+        const opts = d.actionTypes ?? [];
         setActionOptions(opts);
         setActionType((prev) => prev || opts[0]?.value || "");
         setActionsError(null);
@@ -62,7 +64,7 @@ export default function PlayerSelector({
     if (!canvas) return;
 
     const img = new Image();
-    img.src = backendAssetUrl(previewFramePath);
+    img.src = clientAssetUrl(previewFrameKey);
     img.onload = () => {
       imageRef.current = img;
       const scale = Math.min(
@@ -75,7 +77,7 @@ export default function PlayerSelector({
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     };
-  }, [previewFramePath]);
+  }, [previewFrameKey]);
 
   const redraw = useCallback((r: Rect | null) => {
     const canvas = canvasRef.current;

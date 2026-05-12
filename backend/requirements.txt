@@ -1,11 +1,21 @@
+# API
 fastapi==0.136.1
-uvicorn[standard]
-python-multipart
+uvicorn[standard]==0.46.0
+python-multipart==0.0.26
+
+# Config & models
 python-dotenv==1.2.2
 pydantic==2.13.4
+
+# Supabase client
 supabase==2.30.0
-SQLAlchemy==2.0.49
-psycopg2-binary
-numpy<2.3
-opencv-python-headless
-google-genai
+
+# Video frames / OpenCV
+numpy==2.2.6
+opencv-python-headless==4.13.0.92
+
+# Gemini (google-genai SDK)
+google-genai==1.73.1
+
+# Scripts / tests (e.g. test_supabase_public.py)
+requests==2.33.1
