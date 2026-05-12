@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "VolleyPro",
-  description: "AI-assisted volleyball technique feedback from your video clips.",
+  description:
+    "AI-assisted volleyball technique feedback from your video clips.",
 };
 
 export default function RootLayout({

@@ -63,7 +63,9 @@ type CoachingPayload = Record<string, unknown>;
 
 function nonEmptyStrings(val: unknown): string[] {
   if (!Array.isArray(val)) return [];
-  return val.filter((x): x is string => typeof x === "string" && x.trim() !== "");
+  return val.filter(
+    (x): x is string => typeof x === "string" && x.trim() !== "",
+  );
 }
 
 function DoneCoachingSummary({ raw }: { raw: string }) {
@@ -163,9 +165,10 @@ function DoneCoachingSummary({ raw }: { raw: string }) {
           </h4>
           <ul className="space-y-3 text-sm text-gray-200">
             {highlights.map((h, i) => {
-              const sec = typeof h.approximate_seconds === "number"
-                ? h.approximate_seconds
-                : null;
+              const sec =
+                typeof h.approximate_seconds === "number"
+                  ? h.approximate_seconds
+                  : null;
               const note =
                 typeof h.technical_note === "string" ? h.technical_note : "";
               return (
@@ -347,10 +350,7 @@ export default function VolleyProDashboard() {
             overall_score?: unknown;
           };
           if (typeof parsed.overall_score === "number") {
-            scoreUi = Math.max(
-              0,
-              Math.min(10, parsed.overall_score / 10),
-            );
+            scoreUi = Math.max(0, Math.min(10, parsed.overall_score / 10));
           }
         } catch {
           /* fallback: show raw text only */
