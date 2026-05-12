@@ -231,6 +231,7 @@ YouTube rules:
 - Every **youtube_url** MUST be `https://www.youtube.com/watch?v=` plus a valid 11-char video id — a **specific public video**.
 - Forbidden: youtube search URLs, playlists-only links, shortened links you are unsure of, fabricated ids, channel homepages (`/c/`, `/@`), or placeholders.
 - If you do not confidently know a **real** video id from ALLOWED_CHANNELS, **omit that entry** (return fewer recommendations) rather than guessing.
+- Provide a Maximum of 1-2 recommendations. If you cannot find any good recommendations, returning a good search query hyperlink to youtube can be an alternative, but prioritize providing specific recommendations if possible.
 """
 
 
