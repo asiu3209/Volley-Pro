@@ -7,22 +7,13 @@ const BACKEND_URL = (
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-
-    if (!file) {
+    const file = formData.get("file");
+    if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Convert file to buffer
-    const buffer = await file.arrayBuffer();
-
-    // Create new FormData for backend
     const backendFormData = new FormData();
-    backendFormData.append(
-      "file",
-      new Blob([buffer], { type: file.type }),
-      file.name,
-    );
+    backendFormData.append("file", file, file.name);
 
     const response = await fetch(`${BACKEND_URL}/videos/upload`, {
       method: "POST",

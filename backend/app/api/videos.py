@@ -1,3 +1,4 @@
+import gc
 import json
 import os
 import re
@@ -22,9 +23,21 @@ from app.services.video_processing import enable_video_orientation
 
 router = APIRouter()
 
+# Replace with real auth; overridable for local/dev.
+_DEMO_USER_ID = os.environ.get(
+    "VOLLEY_DEMO_USER_ID",
+    "88a249ab-3284-46bd-9b45-6d12e4e9b21d",
+)
+
 ALLOWED_MIME_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"}
-MAX_FILE_SIZE = 100 * 1024 * 1024
 FRAMES_DIR = os.environ.get("FRAMES_DIR", "frames")
+_READ_CHUNK = 1024 * 1024  # 1 MiB — stream to disk without one huge read()
+
+
+def _max_upload_bytes() -> int:
+    """Default 48 MiB: keeps headroom on 1 GB Railway instances (Python + OpenCV + SDK)."""
+    mb = float(os.environ.get("VOLLEY_MAX_UPLOAD_MB", "48"))
+    return max(1, int(mb * 1024 * 1024))
 
 
 class AnalyzeRequest(BaseModel):
@@ -91,7 +104,10 @@ def _write_preview_with_selection_box(
     tint = np.zeros_like(roi)
     tint[:] = (0, 255, 0)
     blended = cv2.addWeighted(roi, 0.82, tint, 0.18, 0)
+    del tint
+    del roi
     img[y1:y2, x1:x2] = blended
+    del blended
     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
     os.makedirs(FRAMES_DIR, exist_ok=True)
@@ -99,18 +115,30 @@ def _write_preview_with_selection_box(
     out_path = os.path.abspath(os.path.join(FRAMES_DIR, out_name))
     if not cv2.imwrite(out_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90]):
         raise ValueError("Failed to write marked preview JPEG.")
+    del img
     return out_path
 
 
 def _receive_upload(file: UploadFile) -> str:
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=415, detail=f"Unsupported type: {file.content_type}")
+    max_b = _max_upload_bytes()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        shutil.copyfileobj(file.file, tmp)
+        total = 0
+        while True:
+            chunk = file.file.read(_READ_CHUNK)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_b:
+                tmp.close()
+                os.unlink(tmp.name)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large (max {max_b // (1024 * 1024)} MiB).",
+                )
+            tmp.write(chunk)
         path = tmp.name
-    if os.path.getsize(path) > MAX_FILE_SIZE:
-        os.unlink(path)
-        raise HTTPException(status_code=413, detail="File too large (max 100 MB).")
     return path
 
 
@@ -175,7 +203,8 @@ def upload_video(file: UploadFile = File(...)):
         preview_name = f"preview_{base}.jpg"
         preview_path = os.path.join(FRAMES_DIR, preview_name)
         shutil.move(tmp_path, stored_path)
-        cv2.imwrite(preview_path, first_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        cv2.imwrite(preview_path, first_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        del first_frame
 
         video_id = str(uuid.uuid4())
 
@@ -285,6 +314,17 @@ def analyze_video(req: AnalyzeRequest):
                 "avg_score": score_for_stats,
                 "total_videos": 1,
             }).execute()
+
+        gc.collect()
+        if os.environ.get(
+            "VOLLEY_DELETE_LOCAL_MEDIA_AFTER_ANALYZE", ""
+        ).lower() in ("1", "true", "yes"):
+            for media_path in (video_fs, preview_fs):
+                try:
+                    if os.path.isfile(media_path):
+                        os.unlink(media_path)
+                except OSError:
+                    pass
 
     except HTTPException:
         raise

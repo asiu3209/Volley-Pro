@@ -14,6 +14,13 @@ export default function UploadVideo({
   onUpload,
 }: UploadVideoProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
+  const maxMb = Number.parseFloat(
+    process.env.NEXT_PUBLIC_VOLLEY_MAX_UPLOAD_MB ?? "48",
+  );
+  const maxMbSafe = Number.isFinite(maxMb) && maxMb > 0 ? maxMb : 48;
+  const maxBytes = maxMbSafe * 1024 * 1024;
 
   if (!isOpen) return null;
 
@@ -32,15 +39,28 @@ export default function UploadVideo({
         </h2>
 
         <p className="mt-2 text-sm text-neutral-400">
-          Upload a short video for AI analysis and feedback.
+          Upload a short video for AI analysis and feedback. Maximum size about{" "}
+          {maxMbSafe} MiB (matches the API).
         </p>
         {/*Upload File */}
         <input
           type="file"
           accept="video/*"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onChange={(e) => {
+            const picked = e.target.files?.[0] ?? null;
+            setSizeError(null);
+            if (picked && picked.size > maxBytes) {
+              setSizeError(`That file exceeds ${maxMbSafe} MiB. Choose a shorter or lower-resolution clip.`);
+              setFile(null);
+              return;
+            }
+            setFile(picked);
+          }}
           className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-800 p-2 text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500"
         />
+        {sizeError && (
+          <p className="mt-2 text-xs text-amber-400">{sizeError}</p>
+        )}
 
         <div className="mt-6 flex justify-end gap-3">
           <button

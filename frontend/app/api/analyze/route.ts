@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json(data);
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: "Analysis request failed" },
       { status: 500 },

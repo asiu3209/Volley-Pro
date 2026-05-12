@@ -30,6 +30,14 @@ export default function AuthPage() {
     setError("");
     setMessage("");
 
+    if (!supabase) {
+      setLoading(false);
+      setError(
+        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      );
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: loginForm.email,
       password: loginForm.password,
@@ -52,6 +60,14 @@ export default function AuthPage() {
     setLoading(true);
     setError("");
     setMessage("");
+
+    if (!supabase) {
+      setLoading(false);
+      setError(
+        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      );
+      return;
+    }
 
     if (signupForm.password !== signupForm.confirmPassword) {
       setError("Passwords do not match.");
