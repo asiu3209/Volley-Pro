@@ -41,7 +41,7 @@ export default function AuthPage() {
         return;
       }
       setAuth(data.token, data.user);
-      router.push("/");
+      router.push("/dashboard");
     } catch {
       setError("Network error. Please try again.");
     }
