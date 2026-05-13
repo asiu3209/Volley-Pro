@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyToken } from "../../lib/verifyToken";
 
 const BACKEND_URL = (
   process.env.INTERNAL_API_URL ?? "http://localhost:8000"
 ).replace(/\/$/, "");
 
 export async function POST(req: NextRequest) {
+  const payload = verifyToken(req.headers.get("Authorization"));
+  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const formData = await req.formData();
     const file = formData.get("file");
@@ -17,6 +21,7 @@ export async function POST(req: NextRequest) {
 
     const response = await fetch(`${BACKEND_URL}/videos/upload`, {
       method: "POST",
+      headers: { "X-User-Id": payload.userId },
       body: backendFormData,
     });
 

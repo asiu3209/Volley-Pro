@@ -9,7 +9,8 @@ from datetime import datetime
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header
+from typing import Optional
 from pydantic import BaseModel
 
 from app.db import supabase
@@ -182,7 +183,7 @@ def _overall_score_normalized_0_to_10(gemini_text: str) -> float | None:
 
 
 @router.post("/upload")
-def upload_video(file: UploadFile = File(...)):
+def upload_video(file: UploadFile = File(...), x_user_id: Optional[str] = Header(None)):
     """
     Receive video, persist it, generate first-frame JPEG for athlete identification UI.
     """
@@ -210,7 +211,7 @@ def upload_video(file: UploadFile = File(...)):
 
         supabase.table("video_submissions").insert({
             "id": video_id,
-            "user_id": "88a249ab-3284-46bd-9b45-6d12e4e9b21d",
+            "user_id": x_user_id,
             "video_url": stored_path,
             "skill_type": "unknown",
             "created_at": datetime.utcnow().isoformat()
@@ -236,7 +237,7 @@ def list_action_types():
 
 
 @router.post("/analyze")
-def analyze_video(req: AnalyzeRequest):
+def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
     video_fs = os.path.join(FRAMES_DIR, req.video_filename)
     if not os.path.isfile(video_fs):
         raise HTTPException(status_code=404, detail="Video not found. Please upload again.")
@@ -295,7 +296,7 @@ def analyze_video(req: AnalyzeRequest):
             "skill_type": action_norm or "unknown",
         }).eq("id", req.video_id).execute()
 
-        user_id = "88a249ab-3284-46bd-9b45-6d12e4e9b21d"
+        user_id = x_user_id
 
         stats = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
 
