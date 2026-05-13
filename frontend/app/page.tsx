@@ -16,6 +16,7 @@ import {
   useDashboardData,
 } from "@/app/context/DashboardDataContext";
 import { errorMessage } from "@/app/lib/errorMessage";
+import { isVolleyVideoTestMode } from "@/app/lib/volleyVideoTestMode";
 import type { ClientAnalyzeResponse } from "@/app/types/volley";
 
 function VolleyProDashboard() {
@@ -122,36 +123,38 @@ function VolleyProDashboard() {
         action_label: a.actionLabel,
       });
 
-      const analysisId =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `a-${Date.now()}`;
-      const trainingId =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `t-${Date.now()}`;
-      const savedAt = new Date().toISOString();
+      if (!isVolleyVideoTestMode()) {
+        const analysisId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `a-${Date.now()}`;
+        const trainingId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `t-${Date.now()}`;
+        const savedAt = new Date().toISOString();
 
-      addAnalysisRecord({
-        id: analysisId,
-        savedAt,
-        videoId,
-        videoFilename,
-        previewFrameKey,
-        actionType: a.actionType,
-        actionLabel: a.actionLabel,
-        score0to10: scoreUi,
-        coachingParsed: a.coachingParsed,
-        coachingRaw: a.coachingRaw,
-      });
+        addAnalysisRecord({
+          id: analysisId,
+          savedAt,
+          videoId,
+          videoFilename,
+          previewFrameKey,
+          actionType: a.actionType,
+          actionLabel: a.actionLabel,
+          score0to10: scoreUi,
+          coachingParsed: a.coachingParsed,
+          coachingRaw: a.coachingRaw,
+        });
 
-      addTrainingSession({
-        id: trainingId,
-        savedAt,
-        videoId,
-        actionLabel: a.actionLabel,
-        recommendations: data.training?.recommendations ?? [],
-      });
+        addTrainingSession({
+          id: trainingId,
+          savedAt,
+          videoId,
+          actionLabel: a.actionLabel,
+          recommendations: data.training?.recommendations ?? [],
+        });
+      }
     } catch {
       setAppState({
         stage: "error",
