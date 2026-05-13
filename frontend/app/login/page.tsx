@@ -2,18 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "../lib/supabase/client";
+import { setAuth } from "../lib/auth";
 
 type Tab = "login" | "signup";
 
 export default function AuthPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  
+
   const [tab, setTab] = useState<Tab>("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({
@@ -25,49 +24,35 @@ export default function AuthPage() {
 
   async function handleLoginSubmit(e: React.FormEvent) {
     e.preventDefault();
-
     setLoading(true);
     setError("");
     setMessage("");
 
-    if (!supabase) {
-      setLoading(false);
-      setError(
-        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-      );
-      return;
+    try {
+      const res = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loginForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Login failed.");
+        setLoading(false);
+        return;
+      }
+      setAuth(data.token, data.user);
+      router.push("/");
+    } catch {
+      setError("Network error. Please try again.");
     }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: loginForm.email,
-      password: loginForm.password,
-    });
-
     setLoading(false);
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    router.push("/");
-    router.refresh();
   }
 
   async function handleSignupSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
     setLoading(true);
     setError("");
     setMessage("");
-
-    if (!supabase) {
-      setLoading(false);
-      setError(
-        "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-      );
-      return;
-    }
 
     if (signupForm.password !== signupForm.confirmPassword) {
       setError("Passwords do not match.");
@@ -75,69 +60,29 @@ export default function AuthPage() {
       return;
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: signupForm.email,
-      password: signupForm.password,
-      options: {
-        data: {
-          full_name: signupForm.name,
-        },
-      },
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: signupForm.email,
+          password: signupForm.password,
+          name: signupForm.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Signup failed.");
+        setLoading(false);
+        return;
+      }
+      setMessage("Account created! Please log in.");
+      setTab("login");
+      setLoginForm({ email: signupForm.email, password: "" });
+    } catch {
+      setError("Network error. Please try again.");
     }
-
-    const authUser = authData.user;
-
-    if (!authUser) {
-      setMessage("Account created. Please check your email to confirm your account.");
-      setLoading(false);
-      return;
-    }
-
-    const { data: userRow, error: userError } = await supabase
-      .from("users")
-      .insert({
-        email: signupForm.email,
-        auth_user_id: authUser.id,
-      })
-      .select("id")
-      .single();
-
-    if (userError) {
-      setError(userError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: userRow.id,
-      full_name: signupForm.name,
-    });
-
     setLoading(false);
-
-    if (profileError) {
-      setError(profileError.message);
-      return;
-    }
-
-    setMessage("Account created successfully.");
-    setTab("login");
-    setLoginForm({
-      email: signupForm.email,
-      password: "",
-    });
-    setSignupForm({
-      name: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-    });
   }
 
   return (
