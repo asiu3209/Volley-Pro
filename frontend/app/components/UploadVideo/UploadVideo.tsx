@@ -35,12 +35,12 @@ export default function UploadVideo({
       <div className="w-full max-w-md rounded-2xl bg-neutral-900 p-6 shadow-xl">
         {/*Heading and Video Purpose */}
         <h2 className="text-xl font-semibold text-white">
-          Upload Volleyball Clip
+          Upload A Short Volleyball Clip
         </h2>
 
         <p className="mt-2 text-sm text-neutral-400">
           Upload a short video for AI analysis and feedback. Maximum size about{" "}
-          {maxMbSafe} MiB (matches the API).
+          {maxMbSafe} MiB.
         </p>
         {/*Upload File */}
         <input
@@ -50,7 +50,9 @@ export default function UploadVideo({
             const picked = e.target.files?.[0] ?? null;
             setSizeError(null);
             if (picked && picked.size > maxBytes) {
-              setSizeError(`That file exceeds ${maxMbSafe} MiB. Choose a shorter or lower-resolution clip.`);
+              setSizeError(
+                `That file exceeds ${maxMbSafe} MiB. Choose a shorter or lower-resolution clip.`,
+              );
               setFile(null);
               return;
             }
