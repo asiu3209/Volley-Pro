@@ -1,10 +1,20 @@
 import os
+
 from dotenv import load_dotenv
-from supabase import create_client
 
-load_dotenv()  
+load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+_VIDEO_TEST = os.environ.get("VOLLEY_VIDEO_TEST_MODE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+if _VIDEO_TEST:
+    supabase = None
+else:
+    from supabase import create_client
+
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)

@@ -34,6 +34,24 @@ FRAMES_DIR = os.environ.get("FRAMES_DIR", "frames")
 _READ_CHUNK = 1024 * 1024  # 1 MiB — stream to disk without one huge read()
 
 
+def _video_db_writes_enabled() -> bool:
+    """
+    Persist upload/analyze to Supabase only when explicitly enabled.
+
+    Default is off so local / demo uploads work without a profiles row for VOLLEY_DEMO_USER_ID
+    (avoids video_submissions_user_id_fkey). Set VOLLEY_ENABLE_VIDEO_DB=true when production DB
+    has matching users and you want rows in video_submissions / ai_analysis_runs / user_stats.
+
+    VOLLEY_SKIP_VIDEO_DB=true forces writes off even if enable is set.
+    VOLLEY_VIDEO_TEST_MODE (in db.py) disables the Supabase client entirely.
+    """
+    if supabase is None:
+        return False
+    if os.environ.get("VOLLEY_SKIP_VIDEO_DB", "").lower() in ("1", "true", "yes"):
+        return False
+    return os.environ.get("VOLLEY_ENABLE_VIDEO_DB", "").lower() in ("1", "true", "yes")
+
+
 def _max_upload_bytes() -> int:
     """Default 48 MiB: keeps headroom on 1 GB Railway instances (Python + OpenCV + SDK)."""
     mb = float(os.environ.get("VOLLEY_MAX_UPLOAD_MB", "48"))
@@ -208,13 +226,14 @@ def upload_video(file: UploadFile = File(...)):
 
         video_id = str(uuid.uuid4())
 
-        supabase.table("video_submissions").insert({
-            "id": video_id,
-            "user_id": "88a249ab-3284-46bd-9b45-6d12e4e9b21d",
-            "video_url": stored_path,
-            "skill_type": "unknown",
-            "created_at": datetime.utcnow().isoformat()
-        }).execute()
+        if _video_db_writes_enabled():
+            supabase.table("video_submissions").insert({
+                "id": video_id,
+                "user_id": _DEMO_USER_ID,
+                "video_url": stored_path,
+                "skill_type": "unknown",
+                "created_at": datetime.utcnow().isoformat(),
+            }).execute()
 
         return {
             "video_id": video_id,
@@ -277,43 +296,48 @@ def analyze_video(req: AnalyzeRequest):
         processing_time = _time.time() - start_time
         score_norm = _overall_score_normalized_0_to_10(feedback_text)
 
-        supabase.table("ai_analysis_runs").insert({
-            "video_id": req.video_id,
-            "model_used": "gemini-video-full-clip",
-            "processing_time": processing_time,
-        }).execute()
-
-        score_for_stats = score_norm if score_norm is not None else 8.0
-
-        supabase.table("video_submissions").update({
-            "ai_score": score_for_stats,
-            "feedback": {
-                "gemini_raw": feedback_text,
-                "model": "gemini-video-full-clip",
-                "overall_score_normalized_0_to_10": score_norm,
-            },
-            "skill_type": action_norm or "unknown",
-        }).eq("id", req.video_id).execute()
-
-        user_id = "88a249ab-3284-46bd-9b45-6d12e4e9b21d"
-
-        stats = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
-
-        if stats.data:
-            current = stats.data[0]
-            total = current["total_videos"] + 1
-            avg = ((current["avg_score"] * current["total_videos"]) + score_for_stats) / total
-
-            supabase.table("user_stats").update({
-                "total_videos": total,
-                "avg_score": avg,
-            }).eq("user_id", user_id).execute()
-        else:
-            supabase.table("user_stats").insert({
-                "user_id": user_id,
-                "avg_score": score_for_stats,
-                "total_videos": 1,
+        if _video_db_writes_enabled():
+            supabase.table("ai_analysis_runs").insert({
+                "video_id": req.video_id,
+                "model_used": "gemini-video-full-clip",
+                "processing_time": processing_time,
             }).execute()
+
+            score_for_stats = score_norm if score_norm is not None else 8.0
+
+            supabase.table("video_submissions").update({
+                "ai_score": score_for_stats,
+                "feedback": {
+                    "gemini_raw": feedback_text,
+                    "model": "gemini-video-full-clip",
+                    "overall_score_normalized_0_to_10": score_norm,
+                },
+                "skill_type": action_norm or "unknown",
+            }).eq("id", req.video_id).execute()
+
+            user_id = _DEMO_USER_ID
+
+            stats = supabase.table("user_stats").select("*").eq(
+                "user_id", user_id
+            ).execute()
+
+            if stats.data:
+                current = stats.data[0]
+                total = current["total_videos"] + 1
+                avg = (
+                    (current["avg_score"] * current["total_videos"]) + score_for_stats
+                ) / total
+
+                supabase.table("user_stats").update({
+                    "total_videos": total,
+                    "avg_score": avg,
+                }).eq("user_id", user_id).execute()
+            else:
+                supabase.table("user_stats").insert({
+                    "user_id": user_id,
+                    "avg_score": score_for_stats,
+                    "total_videos": 1,
+                }).execute()
 
         gc.collect()
         if os.environ.get(

@@ -14,11 +14,28 @@ load_dotenv(override=True)
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
-REFERENCE_IMAGE_BUCKET = os.environ["REFERENCE_IMAGE_BUCKET"]
-REFERENCE_IMAGE_EXT = os.environ["REFERENCE_IMAGE_EXT"].lstrip(".")
-REFERENCE_IMAGE_COUNT = int(os.environ["REFERENCE_IMAGE_COUNT"])
-REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(os.environ["REFERENCE_IMAGE_CACHE_TTL_SECONDS"])
+_VIDEO_TEST = os.environ.get("VOLLEY_VIDEO_TEST_MODE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+if _VIDEO_TEST:
+    SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    REFERENCE_IMAGE_BUCKET = os.environ.get("REFERENCE_IMAGE_BUCKET") or ""
+    REFERENCE_IMAGE_EXT = (os.environ.get("REFERENCE_IMAGE_EXT") or "png").lstrip(".")
+    REFERENCE_IMAGE_COUNT = int(os.environ.get("REFERENCE_IMAGE_COUNT") or "0")
+    REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(
+        os.environ.get("REFERENCE_IMAGE_CACHE_TTL_SECONDS") or "3600"
+    )
+else:
+    SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
+    REFERENCE_IMAGE_BUCKET = os.environ["REFERENCE_IMAGE_BUCKET"]
+    REFERENCE_IMAGE_EXT = os.environ["REFERENCE_IMAGE_EXT"].lstrip(".")
+    REFERENCE_IMAGE_COUNT = int(os.environ["REFERENCE_IMAGE_COUNT"])
+    REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(
+        os.environ["REFERENCE_IMAGE_CACHE_TTL_SECONDS"]
+    )
 
 _REFERENCE_TYPES: dict[str, tuple[str, str]] = {
     "blocks": ("block", "Block"),
@@ -74,6 +91,8 @@ def _reference_image_set(action_type: str | None) -> tuple[str, str] | None:
 
 
 def _reference_urls(folder: str, stem: str) -> list[str]:
+    if not SUPABASE_URL or not REFERENCE_IMAGE_BUCKET or REFERENCE_IMAGE_COUNT < 1:
+        return []
     base = f"{SUPABASE_URL}/storage/v1/object/public/{REFERENCE_IMAGE_BUCKET}/"
     return [
         f'{base}{quote(f"{folder}/{stem}{i}.{REFERENCE_IMAGE_EXT}", safe="/")}'
