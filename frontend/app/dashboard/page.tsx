@@ -86,7 +86,9 @@ type CoachingPayload = Record<string, unknown>;
 
 function nonEmptyStrings(val: unknown): string[] {
   if (!Array.isArray(val)) return [];
-  return val.filter((x): x is string => typeof x === "string" && x.trim() !== "");
+  return val.filter(
+    (x): x is string => typeof x === "string" && x.trim() !== "",
+  );
 }
 
 function DoneCoachingSummary({ raw }: { raw: string }) {
@@ -186,9 +188,10 @@ function DoneCoachingSummary({ raw }: { raw: string }) {
           </h4>
           <ul className="space-y-3 text-sm text-gray-200">
             {highlights.map((h, i) => {
-              const sec = typeof h.approximate_seconds === "number"
-                ? h.approximate_seconds
-                : null;
+              const sec =
+                typeof h.approximate_seconds === "number"
+                  ? h.approximate_seconds
+                  : null;
               const note =
                 typeof h.technical_note === "string" ? h.technical_note : "";
               return (
@@ -247,7 +250,7 @@ export default function VolleyProDashboard() {
     }
     setUser(storedUser);
     fetchUserData(token);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchUserData(token: string) {
@@ -287,26 +290,7 @@ export default function VolleyProDashboard() {
     { id: "analysis", label: "Analysis" },
   ];
 
-  const tips = [
-    {
-      id: 1,
-      title: "Perfect Your Serve Toss",
-      skill: "Serve",
-      priority: "high",
-    },
-    {
-      id: 2,
-      title: "Improve Approach Timing",
-      skill: "Spike",
-      priority: "medium",
-    },
-    {
-      id: 3,
-      title: "Strengthen Core for Blocks",
-      skill: "Block",
-      priority: "low",
-    },
-  ];
+  const tips = [{}];
 
   async function handleUpload(file: File) {
     setUploadOpen(false);
@@ -488,9 +472,7 @@ export default function VolleyProDashboard() {
               <h2 className="text-3xl font-bold text-gray-100">
                 {navigationItems.find((i) => i.id === activeTab)?.label}
               </h2>
-              <p className="text-gray-300 mt-1">
-                Welcome back, {user.name}
-              </p>
+              <p className="text-gray-300 mt-1">Welcome back, {user.name}</p>
             </div>
             <button
               onClick={() => {
@@ -626,8 +608,7 @@ export default function VolleyProDashboard() {
                 <div className="text-3xl font-bold mb-1">
                   {skillStats.length > 0
                     ? skillStats.reduce(
-                        (best, s) =>
-                          s.avg_score > best.avg_score ? s : best,
+                        (best, s) => (s.avg_score > best.avg_score ? s : best),
                         skillStats[0],
                       ).skill
                     : "—"}
