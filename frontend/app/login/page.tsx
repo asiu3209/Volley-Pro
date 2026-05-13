@@ -127,8 +127,17 @@ export default function AuthPage() {
     }
 
     setMessage("Account created successfully.");
-    router.push("/");
-    router.refresh();
+    setTab("login");
+    setLoginForm({
+      email: signupForm.email,
+      password: "",
+    });
+    setSignupForm({
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    });
   }
 
   return (
