@@ -1,0 +1,66 @@
+import type { VideoEntry } from "@/app/types/dashboard";
+
+interface Props {
+  videos: VideoEntry[];
+  limit?: number;
+}
+
+function formatSkillLabel(skillType: string | null): string {
+  if (!skillType) return "Video";
+  return skillType.charAt(0).toUpperCase() + skillType.slice(1);
+}
+
+export default function DashboardRecentVideosPanel({
+  videos,
+  limit = 3,
+}: Props) {
+  const rows = typeof limit === "number" ? videos.slice(0, limit) : videos;
+
+  return (
+    <div className="bg-gray-800 rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-bold text-gray-100">Recent Videos</h3>
+      </div>
+      {videos.length === 0 ? (
+        <p className="text-gray-400 text-sm">
+          No videos yet. Submit your first video to get started!
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {rows.map((v) => (
+            <div
+              key={v.id}
+              className="border-l-4 border-orange-500 flex items-center justify-between p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shrink-0" />
+                <div>
+                  <h4 className="font-semibold text-gray-100">
+                    {formatSkillLabel(v.skill_type)}
+                  </h4>
+                  <div className="flex items-center space-x-3 mt-1 text-sm text-gray-100">
+                    <span>{new Date(v.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {v.ai_score !== null ? (
+                  <>
+                    <div className="text-2xl font-bold text-green-400">
+                      {v.ai_score.toFixed(1)}
+                    </div>
+                    <div className="text-xs text-gray-300">Score</div>
+                  </>
+                ) : (
+                  <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
+                    Processing
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

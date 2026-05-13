@@ -7,11 +7,11 @@ import Footer from "./components/landing/Footer";
 export default function LandingPage() {
   return (
     <main>
-        <Navbar />
-        <Hero />
-        <FeatureGrid />
-        <Preview />
-        <Footer />
+      <Navbar />
+      <Hero />
+      <FeatureGrid />
+      <Preview />
+      <Footer />
     </main>
   );
 }
