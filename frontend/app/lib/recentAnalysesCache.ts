@@ -50,17 +50,69 @@ export function deriveSkillStatsFromVideos(videos: VideoEntry[]): SkillStat[] {
   return stats.sort((a, b) => b.attempts - a.attempts);
 }
 
+/**
+ * Same analysis often appears twice: localStorage uses the upload `video_id` as `id`,
+ * while Supabase assigns a new row UUID. Dedupe by skill + score + a short time bucket,
+ * then keep the API row's `id` and merge coaching fields from the device cache.
+ */
+function analysisFingerprint(v: VideoEntry): string {
+  const skill = (v.skill_type ?? "").trim().toLowerCase();
+  const t = new Date(v.created_at).getTime();
+  if (Number.isNaN(t)) return `${skill}|invalid|${v.id}`;
+  const bucket = Math.floor(t / 60000);
+  const score =
+    v.ai_score !== null && v.ai_score !== undefined
+      ? (Math.round(Number(v.ai_score) * 100) / 100).toFixed(2)
+      : "null";
+  return `${skill}|${score}|${bucket}`;
+}
+
+function mergeEntryContent(existing: VideoEntry, incoming: VideoEntry): VideoEntry {
+  const exL = existing.gemini_feedback?.trim().length ?? 0;
+  const inL = incoming.gemini_feedback?.trim().length ?? 0;
+  return {
+    ...existing,
+    gemini_feedback:
+      inL > exL ? incoming.gemini_feedback : existing.gemini_feedback,
+    action_label:
+      existing.action_label?.trim() ||
+      incoming.action_label?.trim() ||
+      null,
+    preview_frame:
+      existing.preview_frame?.trim() ||
+      incoming.preview_frame?.trim() ||
+      null,
+  };
+}
+
 export function mergeRecentVideosFromSources(
   apiVideos: VideoEntry[],
   cached: VideoEntry[],
 ): VideoEntry[] {
-  const seen = new Set<string>();
+  const byFp = new Map<string, VideoEntry>();
+
+  for (const v of apiVideos) {
+    byFp.set(analysisFingerprint(v), { ...v });
+  }
+
+  for (const v of cached) {
+    const fp = analysisFingerprint(v);
+    const existing = byFp.get(fp);
+    if (existing) {
+      byFp.set(fp, mergeEntryContent(existing, v));
+    } else {
+      byFp.set(fp, { ...v });
+    }
+  }
+
+  const seenId = new Set<string>();
   const merged: VideoEntry[] = [];
-  for (const v of [...cached, ...apiVideos]) {
-    if (seen.has(v.id)) continue;
-    seen.add(v.id);
+  for (const v of byFp.values()) {
+    if (seenId.has(v.id)) continue;
+    seenId.add(v.id);
     merged.push(v);
   }
+
   return merged.sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
