@@ -478,12 +478,17 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
                 action_type=action_norm,
             )
             score_norm = _overall_score_normalized_0_to_10(feedback_text)
-            _cache_put_analysis(cache_key, feedback_text, score_norm)
 
         score_for_stats = score_norm if score_norm is not None else 8.0
 
+        uid = (x_user_id or "").strip() or None
+
+        # Persist only on a fresh Gemini run (not a server cache hit), so we do not
+        # double-count stats. Critical: do not populate the in-memory cache until after
+        # a successful Supabase write when we have a user id — otherwise a failed insert
+        # still caches the result and every later request hits used_cache=True and never
+        # retries the DB.
         if not used_cache:
-            uid = (x_user_id or "").strip() or None
             if uid:
                 try:
                     _persist_supabase_after_analysis(
@@ -493,12 +498,29 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
                         feedback_text,
                         score_norm,
                     )
+                    logger.info(
+                        "Supabase persist after analysis ok user_id=%s table=%s",
+                        uid[:8] + "…",
+                        VIDEO_ANALYSES_TABLE,
+                    )
                 except Exception as exc:
                     logger.warning(
                         "Supabase persist after analysis failed: %s",
                         exc,
                         exc_info=True,
                     )
+                else:
+                    _cache_put_analysis(cache_key, feedback_text, score_norm)
+            else:
+                logger.warning(
+                    "Skipping Supabase persist: missing X-User-Id on /videos/analyze"
+                )
+                _cache_put_analysis(cache_key, feedback_text, score_norm)
+        elif uid:
+            logger.debug(
+                "Analyze used in-memory cache; Supabase not updated (avoid duplicate rows). "
+                "Wait for cache TTL or change crop/video to persist again."
+            )
 
         gc.collect()
 
