@@ -22,7 +22,7 @@ REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(os.environ["REFERENCE_IMAGE_CACHE_TTL_SE
 
 _REFERENCE_TYPES: dict[str, tuple[str, str]] = {
     "blocks": ("block", "Block"),
-    "digs": ("dig", "Dig"),
+    "digs": ("dig", "Dig/Pass"),
     "pins": ("hit", "Attack (hit)"),
     "setters": ("setter", "Set"),
     "serves": ("serve", "Serve"),
@@ -83,9 +83,13 @@ def _reference_urls(folder: str, stem: str) -> list[str]:
 
 def _download_part(url: str) -> types.Part | None:
     try:
-        with urlopen(Request(url, headers={"User-Agent": "volleyPro/1.0"}), timeout=8) as r:
+        with urlopen(
+            Request(url, headers={"User-Agent": "volleyPro/1.0"}), timeout=8
+        ) as r:
             blob = r.read()
-            ctype = r.headers.get_content_type() or (mimetypes.guess_type(url)[0] or "image/png")
+            ctype = r.headers.get_content_type() or (
+                mimetypes.guess_type(url)[0] or "image/png"
+            )
     except (HTTPError, URLError, TimeoutError):
         return None
     return types.Part.from_bytes(data=blob, mime_type=ctype)
@@ -254,10 +258,16 @@ def analyze_video_with_gemini(
         preview_bytes = f.read()
 
     uploaded_name: str | None = None
-    force_inline = os.environ.get("GEMINI_FORCE_INLINE_VIDEO", "").lower() in ("1", "true", "yes")
+    force_inline = os.environ.get("GEMINI_FORCE_INLINE_VIDEO", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     if force_inline:
         with open(video_path, "rb") as f:
-            video_part = types.Part.from_bytes(data=f.read(), mime_type=_video_mime(video_path))
+            video_part = types.Part.from_bytes(
+                data=f.read(), mime_type=_video_mime(video_path)
+            )
     else:
         try:
             uploaded_name, video_part = _upload_video_via_files_api(video_path)
@@ -293,7 +303,9 @@ def analyze_video_with_gemini(
             contents.append("No refs — rely on textbook volleyball biomechanics.")
 
         return (
-            client.models.generate_content(model="gemini-2.5-flash", contents=contents).text
+            client.models.generate_content(
+                model="gemini-2.5-flash", contents=contents
+            ).text
             or "{}"
         )
     finally:

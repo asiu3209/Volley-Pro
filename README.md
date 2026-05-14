@@ -26,6 +26,7 @@ Typical deployment: **frontend on Vercel**, **API on Railway** (or any container
 - Bounding box on preview; server composites a marked JPEG for Gemini  
 - Skill/action type selection aligned with reference image sets  
 - Full-clip Gemini analysis + JSON-shaped coaching response  
+- Dashboard **recent analyses** and **per-skill averages** are stored in the browser (`localStorage`) so the API does not persist each clip to Postgres  
 - Dashboard UI for summarized results  
 
 ---
@@ -69,7 +70,6 @@ Create **`backend/.env`** (or export in your host) with at least:
 | `REFERENCE_IMAGE_EXT` | e.g. `png` |
 | `REFERENCE_IMAGE_COUNT` | Number of reference files per skill |
 | `REFERENCE_IMAGE_CACHE_TTL_SECONDS` | Local cache TTL for reference downloads |
-| `VOLLEY_DEMO_USER_ID` | Fallback UUID for submissions when `X-User-Id` is absent (has a safe default in code) |
 
 Optional tuning (see code for defaults):
 
@@ -77,7 +77,8 @@ Optional tuning (see code for defaults):
 - `VOLLEY_MAX_UPLOAD_MB` — max upload size (default `48`)  
 - `CORS_ORIGINS` — comma-separated allowed origins  
 - `GEMINI_FILE_READY_TIMEOUT_SEC`, `GEMINI_FILE_POLL_INTERVAL_SEC` — Files API polling  
-- `VOLLEY_DELETE_LOCAL_MEDIA_AFTER_ANALYZE` — delete local video/preview after successful analyze (`true` / `false`)  
+- `VOLLEY_ANALYZE_CACHE_TTL_SEC` — in-memory dedupe of identical analyze requests (default `900`)  
+- `VOLLEY_ANALYZE_CACHE_MAX` — max cached analyze entries (default `128`)  
 
 Run locally:
 
@@ -123,9 +124,9 @@ npm run dev
 | `POST` | `/videos/upload` | Multipart video upload; returns `video_id`, `video_filename`, `preview_frame` |
 | `GET` | `/videos/action-types` | Skill options for the UI |
 | `POST` | `/videos/analyze` | JSON: video id, filename, preview path, bbox fractions, optional `action_type` |
-| `GET` | `/users/stats` | Query: `user_id` — dashboard aggregates |
-| `GET` | `/users/videos` | Query: `user_id` — recent submissions |
-| `GET` | `/users/skill-stats` | Query: `user_id` — per-skill averages |
+| `GET` | `/users/stats` | Query: `user_id` — dashboard aggregates (`user_stats`) |
+| `GET` | `/users/videos` | Query: `user_id` — optional legacy list (dashboard prefers browser cache) |
+| `GET` | `/users/skill-stats` | Query: `user_id` — optional legacy aggregates (dashboard derives skills from browser cache) |
 
 Additional routes for user/profile creation live under the same routers in `backend/app/api/` (see FastAPI `/docs` when the server is running).
 

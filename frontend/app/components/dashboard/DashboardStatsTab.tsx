@@ -1,3 +1,4 @@
+import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { SkillStat } from "@/app/types/dashboard";
 
 interface Props {
@@ -21,7 +22,7 @@ export default function DashboardStatsTab({ skillStats }: Props) {
               <div key={s.skill} className="p-4 bg-gray-700 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-gray-100">
-                    {s.skill.charAt(0).toUpperCase() + s.skill.slice(1)}
+                    {formatSkillDisplayName(s.skill)}
                   </h4>
                   <span className="text-2xl font-bold text-orange-600">
                     {s.avg_score.toFixed(1)}/10

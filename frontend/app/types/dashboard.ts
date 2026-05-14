@@ -21,6 +21,11 @@ export interface VideoEntry {
   skill_type: string | null;
   ai_score: number | null;
   created_at: string;
+  /** Full Gemini response; kept in localStorage for the Analysis tab */
+  gemini_feedback?: string | null;
+  action_label?: string | null;
+  /** Preview path for coaching layout (optional; may 404 after server deletes media) */
+  preview_frame?: string | null;
 }
 
 export const EMPTY_STATS: UserStats = { total_videos: 0, avg_score: 0 };
