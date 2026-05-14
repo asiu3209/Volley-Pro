@@ -77,8 +77,9 @@ Optional tuning (see code for defaults):
 - `VOLLEY_MAX_UPLOAD_MB` — max upload size (default `48`)
 - `CORS_ORIGINS` — comma-separated allowed origins
 - `GEMINI_FILE_READY_TIMEOUT_SEC`, `GEMINI_FILE_POLL_INTERVAL_SEC` — Files API polling
-- `VOLLEY_ANALYZE_CACHE_TTL_SEC` — in-memory dedupe of identical analyze requests (default `900`)
-- `VOLLEY_ANALYZE_CACHE_MAX` — max cached analyze entries (default `128`)
+- `VOLLEY_ANALYZE_CACHE_TTL_SEC` — in-memory dedupe of identical analyze requests (default `900`)  
+- `VOLLEY_ANALYZE_CACHE_MAX` — max cached analyze entries (default `128`)  
+- `VIDEO_ANALYSES_TABLE` — Postgres table for persisted analyses (default `video_analyses`)  
 
 Run locally:
 
