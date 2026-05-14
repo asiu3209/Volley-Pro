@@ -14,9 +14,9 @@ The default product path is **full-video LLM analysis**—not a hosted training 
 | **Backend** | Python 3, FastAPI, Uvicorn |
 | **Data** | Supabase (Postgres + auth-aligned tables used in code) |
 | **AI** | Google Gemini (`google-genai`), Files API for video where supported |
-| **Video / CV** | OpenCV (preview + uploads), MediaPipe optionally used by experimental frame tooling |
+| **Video / CV** | OpenCV (preview JPEG + upload handling) |
 
-Typical deployment: **frontend on Vercel**, **API on Railway** (or any container/host with enough RAM for video + SDK). Uploads usually go **directly** from the browser to the FastAPI `POST /videos/upload` endpoint (`NEXT_PUBLIC_API_URL`).
+Typical deployment: **frontend on Vercel**, **API on Railway** (or any container/host with enough RAM for video + SDK). **Video uploads** go **directly** from the browser to `POST /videos/upload` on the API host (`NEXT_PUBLIC_API_URL`), not through Vercel serverless (payload limits).
 
 ---
 
@@ -36,7 +36,7 @@ Typical deployment: **frontend on Vercel**, **API on Railway** (or any container
 volleyPro/
 ├── frontend/          # Next.js app
 ├── backend/           # FastAPI app (Python package `app`)
-│   └── railway.toml    # Single-worker deploy hint for small instances
+│   └── railway.toml   # Single-worker deploy hint for small instances
 └── README.md
 ```
 
@@ -69,7 +69,7 @@ Create **`backend/.env`** (or export in your host) with at least:
 | `REFERENCE_IMAGE_EXT` | e.g. `png` |
 | `REFERENCE_IMAGE_COUNT` | Number of reference files per skill |
 | `REFERENCE_IMAGE_CACHE_TTL_SECONDS` | Local cache TTL for reference downloads |
-| `VOLLEY_DEMO_USER_ID` | UUID written to submissions until auth is wired (has a safe default in code) |
+| `VOLLEY_DEMO_USER_ID` | Fallback UUID for submissions when `X-User-Id` is absent (has a safe default in code) |
 
 Optional tuning (see code for defaults):
 
@@ -101,8 +101,9 @@ Create **`frontend/.env.local`**:
 
 | Variable | Purpose |
 |----------|---------|
-| `NEXT_PUBLIC_API_URL` | Public FastAPI base URL (e.g. `http://localhost:8000`) — used for upload, frames, and action types |
-| `INTERNAL_API_URL` | Server-side proxy target (Vercel → Railway); often same as public URL in dev |
+| `NEXT_PUBLIC_API_URL` | Public FastAPI base URL (e.g. `http://localhost:8000`) — **required** for browser uploads, preview images, and `GET /videos/action-types` |
+| `INTERNAL_API_URL` | Server-side proxy target for Next.js `app/api/*` routes that call the backend (Vercel → Railway); often same as public URL in dev |
+| `JWT_SECRET` | Signs app JWTs after Supabase email/password login |
 | `NEXT_PUBLIC_VOLLEY_MAX_UPLOAD_MB` | Should match `VOLLEY_MAX_UPLOAD_MB` on the API |
 
 Run:
@@ -122,17 +123,20 @@ npm run dev
 | `POST` | `/videos/upload` | Multipart video upload; returns `video_id`, `video_filename`, `preview_frame` |
 | `GET` | `/videos/action-types` | Skill options for the UI |
 | `POST` | `/videos/analyze` | JSON: video id, filename, preview path, bbox fractions, optional `action_type` |
-| `POST` | `/users/` | JSON body: `{ "email": "…" }` |
-| `POST` | `/profiles/` | JSON body: `user_id`, `full_name`, `username`, optional `position`, `skill_level` |
+| `GET` | `/users/stats` | Query: `user_id` — dashboard aggregates |
+| `GET` | `/users/videos` | Query: `user_id` — recent submissions |
+| `GET` | `/users/skill-stats` | Query: `user_id` — per-skill averages |
 
-Next.js rewrites/proxies under `frontend/app/api/*` forward some calls to the backend using `INTERNAL_API_URL`.
+Additional routes for user/profile creation live under the same routers in `backend/app/api/` (see FastAPI `/docs` when the server is running).
+
+Next.js routes under `frontend/app/api/*` (e.g. `/api/analyze`, `/api/users/*`) forward **JSON** to the backend using **`INTERNAL_API_URL`**. Large **multipart** uploads use **`NEXT_PUBLIC_API_URL`** from the browser only.
 
 ---
 
 ## Deployment notes
 
 - **Railway / small RAM:** keep **one** Uvicorn worker; prefer the **Gemini Files API** path for video (see `app/services/gemini.py`) instead of holding full-file byte buffers when possible.  
-- **Vercel:** keep serverless routes small; large uploads should target the FastAPI origin (`NEXT_PUBLIC_API_URL`), not a double-buffered proxy when avoidable.  
+- **Vercel:** do not send large multipart bodies to Next serverless routes; use **`NEXT_PUBLIC_API_URL`** for `POST /videos/upload`.  
 - **CORS:** set `CORS_ORIGINS` to your production frontend origin(s).
 
 ---

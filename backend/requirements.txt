@@ -4,9 +4,6 @@ python-multipart
 python-dotenv==1.2.2
 pydantic==2.13.4
 supabase==2.30.0
-SQLAlchemy==2.0.49
-psycopg2-binary
 numpy<2.3
-opencv-contrib-python-headless
-mediapipe==0.10.21
+opencv-python-headless
 google-genai
