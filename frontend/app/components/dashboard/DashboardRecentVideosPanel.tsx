@@ -1,13 +1,9 @@
+import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { VideoEntry } from "@/app/types/dashboard";
 
 interface Props {
   videos: VideoEntry[];
   limit?: number;
-}
-
-function formatSkillLabel(skillType: string | null): string {
-  if (!skillType) return "Video";
-  return skillType.charAt(0).toUpperCase() + skillType.slice(1);
 }
 
 export default function DashboardRecentVideosPanel({
@@ -19,11 +15,11 @@ export default function DashboardRecentVideosPanel({
   return (
     <div className="bg-gray-800 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-bold text-gray-100">Recent Videos</h3>
+        <h3 className="text-xl font-bold text-gray-100">Recent analyses</h3>
       </div>
       {videos.length === 0 ? (
         <p className="text-gray-400 text-sm">
-          No videos yet. Submit your first video to get started!
+          No analyses yet. Submit a video from the Dashboard tab to get started.
         </p>
       ) : (
         <div className="space-y-4">
@@ -36,7 +32,7 @@ export default function DashboardRecentVideosPanel({
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shrink-0" />
                 <div>
                   <h4 className="font-semibold text-gray-100">
-                    {formatSkillLabel(v.skill_type)}
+                    {formatSkillDisplayName(v.skill_type)}
                   </h4>
                   <div className="flex items-center space-x-3 mt-1 text-sm text-gray-100">
                     <span>{new Date(v.created_at).toLocaleDateString()}</span>

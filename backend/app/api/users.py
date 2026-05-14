@@ -1,7 +1,11 @@
+import os
+
 from fastapi import APIRouter, Query
 from app.db import supabase
 
 router = APIRouter()
+
+_VIDEO_ANALYSES = os.environ.get("VIDEO_ANALYSES_TABLE", "video_analyses")
 
 
 @router.post("/users")
@@ -25,7 +29,7 @@ def get_stats(user_id: str = Query(...)):
 @router.get("/videos")
 def get_videos(user_id: str = Query(...)):
     res = (
-        supabase.table("video_submissions")
+        supabase.table(_VIDEO_ANALYSES)
         .select("id, skill_type, ai_score, created_at")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
@@ -37,8 +41,9 @@ def get_videos(user_id: str = Query(...)):
 
 @router.get("/skill-stats")
 def get_skill_stats(user_id: str = Query(...)):
+    table = _VIDEO_ANALYSES
     res = (
-        supabase.table("video_submissions")
+        supabase.table(table)
         .select("skill_type, ai_score")
         .eq("user_id", user_id)
         .not_.is_("ai_score", "null")

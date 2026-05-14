@@ -13,6 +13,13 @@ import {
   readPersistedDashboardTips,
   type DashboardTip,
 } from "@/app/lib/dashboardTips";
+import {
+  appendRecentAnalysisToCache,
+  clearRecentAnalysesCache,
+  deriveSkillStatsFromVideos,
+  mergeRecentVideosFromSources,
+  readRecentAnalysesFromCache,
+} from "@/app/lib/recentAnalysesCache";
 import { clearAuth, getToken, getUser } from "@/app/lib/auth";
 import type { AuthUser } from "@/app/lib/auth";
 import type { Rect } from "@/app/types/dashboard";
@@ -38,25 +45,27 @@ export function useVolleyDashboard() {
 
   const fetchUserData = useCallback(async (token: string) => {
     const headers = { Authorization: `Bearer ${token}` };
+    const cachedVideos = readRecentAnalysesFromCache();
     try {
-      const [statsRes, videosRes, skillRes] = await Promise.all([
+      const [statsRes, videosRes] = await Promise.all([
         fetch("/api/users/stats", { headers }),
         fetch("/api/users/videos", { headers }),
-        fetch("/api/users/skill-stats", { headers }),
       ]);
       if (statsRes.ok) {
         setUserStats((await statsRes.json()) as UserStats);
       }
       if (videosRes.ok) {
         const v = (await videosRes.json()) as { videos: VideoEntry[] };
-        setRecentVideos(v.videos);
-      }
-      if (skillRes.ok) {
-        const sk = (await skillRes.json()) as { skill_stats: SkillStat[] };
-        setSkillStats(sk.skill_stats);
+        const merged = mergeRecentVideosFromSources(v.videos ?? [], cachedVideos);
+        setRecentVideos(merged);
+        setSkillStats(deriveSkillStatsFromVideos(merged));
+      } else {
+        setRecentVideos(cachedVideos);
+        setSkillStats(deriveSkillStatsFromVideos(cachedVideos));
       }
     } catch {
-      /* ignore — stale data is fine */
+      setRecentVideos(cachedVideos);
+      setSkillStats(deriveSkillStatsFromVideos(cachedVideos));
     }
   }, []);
 
@@ -77,6 +86,7 @@ export function useVolleyDashboard() {
 
   const handleLogout = useCallback(() => {
     clearPersistedDashboardTips();
+    clearRecentAnalysesCache();
     setDashboardTips([]);
     clearAuth();
     router.replace("/login");
@@ -192,6 +202,7 @@ export function useVolleyDashboard() {
           }),
         });
         const data = (await res.json()) as {
+          detail?: unknown;
           error?: unknown;
           gemini_feedback?: string;
           overall_score_0_to_10?: number;
@@ -201,7 +212,7 @@ export function useVolleyDashboard() {
         if (!res.ok) {
           setAppState({
             stage: "error",
-            message: errorMessage(data.error, "Analysis failed."),
+            message: errorMessage(data.error ?? data.detail, "Analysis failed."),
           });
           return;
         }
@@ -239,6 +250,16 @@ export function useVolleyDashboard() {
         const tips = parseImprovementTipsFromGemini(rawFeedback);
         setDashboardTips(tips);
         persistDashboardTips(tips);
+
+        appendRecentAnalysisToCache({
+          id: videoId,
+          skill_type: data.action_type ?? actionType ?? null,
+          action_label: data.action_label ?? null,
+          gemini_feedback: rawFeedback,
+          preview_frame: previewFrame,
+          ai_score: scoreUi,
+          created_at: new Date().toISOString(),
+        });
 
         void fetchUserData(token);
       } catch {

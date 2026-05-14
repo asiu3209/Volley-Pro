@@ -1,11 +1,14 @@
 import gc
 import json
+import logging
 import os
 import re
 import shutil
 import tempfile
+import threading
+import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import cv2
 import numpy as np
@@ -24,15 +27,18 @@ from app.services.video_processing import enable_video_orientation
 
 router = APIRouter()
 
-# Replace with real auth; overridable for local/dev.
-_DEMO_USER_ID = os.environ.get(
-    "VOLLEY_DEMO_USER_ID",
-    "88a249ab-3284-46bd-9b45-6d12e4e9b21d",
-)
+logger = logging.getLogger(__name__)
 
+VIDEO_ANALYSES_TABLE = os.environ.get("VIDEO_ANALYSES_TABLE", "video_analyses")
 ALLOWED_MIME_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"}
 FRAMES_DIR = os.environ.get("FRAMES_DIR", "frames")
 _READ_CHUNK = 1024 * 1024  # 1 MiB — stream to disk without one huge read()
+
+_ANALYSIS_CACHE_LOCK = threading.Lock()
+# key -> (expires_at_unix, feedback_text, score_norm)
+_ANALYSIS_CACHE: dict[str, tuple[float, str, float | None]] = {}
+_ANALYSIS_CACHE_TTL_SEC = float(os.environ.get("VOLLEY_ANALYZE_CACHE_TTL_SEC", "900"))
+_ANALYSIS_CACHE_MAX = max(8, int(os.environ.get("VOLLEY_ANALYZE_CACHE_MAX", "128")))
 
 _EXT_TO_MIME = {
     ".mp4": "video/mp4",
@@ -220,6 +226,150 @@ def _strip_code_fences(text: str) -> str:
     return t.strip()
 
 
+def _analyze_cache_key(
+    video_fs: str,
+    bbox: tuple[float, float, float, float],
+    action_norm: str | None,
+) -> str:
+    st = os.stat(video_fs)
+    bx = tuple(round(float(x), 4) for x in bbox)
+    return f"v1:{st.st_size}:{int(st.st_mtime_ns)}:{bx}:{action_norm or ''}"
+
+
+def _cache_get_analysis(key: str) -> tuple[str, float | None] | None:
+    now = time.time()
+    with _ANALYSIS_CACHE_LOCK:
+        row = _ANALYSIS_CACHE.get(key)
+        if not row:
+            return None
+        exp, feedback, score = row
+        if now > exp:
+            del _ANALYSIS_CACHE[key]
+            return None
+        return feedback, score
+
+
+def _cache_put_analysis(key: str, feedback_text: str, score_norm: float | None) -> None:
+    exp = time.time() + _ANALYSIS_CACHE_TTL_SEC
+    with _ANALYSIS_CACHE_LOCK:
+        while len(_ANALYSIS_CACHE) >= _ANALYSIS_CACHE_MAX:
+            try:
+                del _ANALYSIS_CACHE[next(iter(_ANALYSIS_CACHE))]
+            except StopIteration:
+                break
+        _ANALYSIS_CACHE[key] = (exp, feedback_text, score_norm)
+
+
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# `normalize_action_type` returns reference keys: blocks, digs, pins, setters, serves
+_ANALYSIS_KEY_TO_STATS_COL = {
+    "serves": "serve_score",
+    "digs": "pass_score",
+    "pins": "spike_score",
+    "setters": "set_score",
+}
+
+
+def _ensure_profile_row(user_id: str) -> None:
+    """Ensure profiles.id exists for FKs (video_analyses.user_id, user_stats.user_id)."""
+    uid = str(user_id).strip()
+    if not uid:
+        return
+    handle = f"u_{uid.replace('-', '')}"[:30]
+    supabase.table("profiles").upsert(
+        {
+            "id": uid,
+            "full_name": "VolleyPro player",
+            "username": handle,
+        },
+    ).execute()
+
+
+def _feedback_jsonb(feedback_text: str, score_norm: float | None) -> dict:
+    try:
+        parsed = json.loads(_strip_code_fences(feedback_text))
+        if isinstance(parsed, dict):
+            out = dict(parsed)
+            out.setdefault("model", "gemini-video-full-clip")
+            if score_norm is not None:
+                out.setdefault("overall_score_normalized_0_to_10", score_norm)
+            return out
+    except json.JSONDecodeError:
+        pass
+    return {
+        "gemini_raw": feedback_text,
+        "overall_score_normalized_0_to_10": score_norm,
+        "model": "gemini-video-full-clip",
+    }
+
+
+def _insert_video_analysis_row(
+    uid: str,
+    skill_key: str | None,
+    ai_score: float,
+    feedback_text: str,
+    score_norm: float | None,
+) -> None:
+    row = {
+        "id": str(uuid.uuid4()),
+        "user_id": uid,
+        "skill_type": skill_key or "unknown",
+        "ai_score": float(ai_score),
+        "feedback": _feedback_jsonb(feedback_text, score_norm),
+        "model": "gemini-video-full-clip",
+    }
+    supabase.table(VIDEO_ANALYSES_TABLE).insert(row).execute()
+
+
+def _update_user_stats_row(
+    user_id: str,
+    score_for_stats: float,
+    skill_key: str | None,
+) -> None:
+    skill_col = _ANALYSIS_KEY_TO_STATS_COL.get(skill_key or "")
+    now_iso = _utcnow_iso()
+    stats = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
+    if stats.data:
+        current = stats.data[0]
+        prev_tv = int(current.get("total_videos") or 0)
+        total = prev_tv + 1
+        prev_avg = float(current.get("avg_score") or 0.0)
+        avg = ((prev_avg * prev_tv) + score_for_stats) / total if total else float(score_for_stats)
+        payload: dict = {
+            "total_videos": total,
+            "avg_score": avg,
+            "updated_at": now_iso,
+        }
+        if skill_col and skill_col in current:
+            payload[skill_col] = float(score_for_stats)
+        supabase.table("user_stats").update(payload).eq("user_id", user_id).execute()
+    else:
+        ins: dict = {
+            "user_id": user_id,
+            "avg_score": float(score_for_stats),
+            "total_videos": 1,
+            "updated_at": now_iso,
+        }
+        if skill_col:
+            ins[skill_col] = float(score_for_stats)
+        supabase.table("user_stats").insert(ins).execute()
+
+
+def _persist_supabase_after_analysis(
+    uid: str,
+    skill_key: str | None,
+    score_for_stats: float,
+    feedback_text: str,
+    score_norm: float | None,
+) -> None:
+    _ensure_profile_row(uid)
+    _insert_video_analysis_row(uid, skill_key, score_for_stats, feedback_text, score_norm)
+    _update_user_stats_row(uid, score_for_stats, skill_key)
+
+
 def _overall_score_normalized_0_to_10(gemini_text: str) -> float | None:
     try:
         data = json.loads(_strip_code_fences(gemini_text))
@@ -265,16 +415,6 @@ def upload_video(file: UploadFile = File(...), x_user_id: Optional[str] = Header
 
         video_id = str(uuid.uuid4())
 
-        row_user_id = x_user_id if (x_user_id and str(x_user_id).strip()) else _DEMO_USER_ID
-
-        supabase.table("video_submissions").insert({
-            "id": video_id,
-            "user_id": row_user_id,
-            "video_url": stored_path,
-            "skill_type": "unknown",
-            "created_at": datetime.utcnow().isoformat()
-        }).execute()
-
         return {
             "video_id": video_id,
             "video_filename": os.path.basename(stored_path),
@@ -317,73 +457,50 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
     _validate_bbox_frac(req.bbox_x, req.bbox_y, req.bbox_w, req.bbox_h)
     bbox = (req.bbox_x, req.bbox_y, req.bbox_w, req.bbox_h)
 
+    cache_key = _analyze_cache_key(video_fs, bbox, action_norm)
+    hit = _cache_get_analysis(cache_key)
     marked_preview: str | None = None
-    try:
-        marked_preview = _write_preview_with_selection_box(preview_fs, bbox)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    used_cache = hit is not None
+    feedback_text: str
+    score_norm: float | None
 
     try:
-        import time as _time
-        start_time = _time.time()
-
-        feedback_text = analyze_video_with_gemini(
-            video_path=video_fs,
-            preview_image_path=marked_preview,
-            action_type=action_norm,
-        )
-
-        processing_time = _time.time() - start_time
-        score_norm = _overall_score_normalized_0_to_10(feedback_text)
-
-        supabase.table("ai_analysis_runs").insert({
-            "video_id": req.video_id,
-            "model_used": "gemini-video-full-clip",
-            "processing_time": processing_time,
-        }).execute()
+        if hit:
+            feedback_text, score_norm = hit
+        else:
+            try:
+                marked_preview = _write_preview_with_selection_box(preview_fs, bbox)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            feedback_text = analyze_video_with_gemini(
+                video_path=video_fs,
+                preview_image_path=marked_preview,
+                action_type=action_norm,
+            )
+            score_norm = _overall_score_normalized_0_to_10(feedback_text)
+            _cache_put_analysis(cache_key, feedback_text, score_norm)
 
         score_for_stats = score_norm if score_norm is not None else 8.0
 
-        supabase.table("video_submissions").update({
-            "ai_score": score_for_stats,
-            "feedback": {
-                "gemini_raw": feedback_text,
-                "model": "gemini-video-full-clip",
-                "overall_score_normalized_0_to_10": score_norm,
-            },
-            "skill_type": action_norm or "unknown",
-        }).eq("id", req.video_id).execute()
-
-        user_id = x_user_id
-
-        stats = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
-
-        if stats.data:
-            current = stats.data[0]
-            total = current["total_videos"] + 1
-            avg = ((current["avg_score"] * current["total_videos"]) + score_for_stats) / total
-
-            supabase.table("user_stats").update({
-                "total_videos": total,
-                "avg_score": avg,
-            }).eq("user_id", user_id).execute()
-        else:
-            supabase.table("user_stats").insert({
-                "user_id": user_id,
-                "avg_score": score_for_stats,
-                "total_videos": 1,
-            }).execute()
+        if not used_cache:
+            uid = (x_user_id or "").strip() or None
+            if uid:
+                try:
+                    _persist_supabase_after_analysis(
+                        uid,
+                        action_norm,
+                        score_for_stats,
+                        feedback_text,
+                        score_norm,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Supabase persist after analysis failed: %s",
+                        exc,
+                        exc_info=True,
+                    )
 
         gc.collect()
-        if os.environ.get(
-            "VOLLEY_DELETE_LOCAL_MEDIA_AFTER_ANALYZE", ""
-        ).lower() in ("1", "true", "yes"):
-            for media_path in (video_fs, preview_fs):
-                try:
-                    if os.path.isfile(media_path):
-                        os.unlink(media_path)
-                except OSError:
-                    pass
 
     except HTTPException:
         raise
@@ -392,15 +509,17 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Analysis failed: {exc}") from exc
     finally:
-        if marked_preview and os.path.isfile(marked_preview):
-            try:
-                os.unlink(marked_preview)
-            except OSError:
-                pass
+        for path in (marked_preview, video_fs, preview_fs):
+            if path and os.path.isfile(path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
     return {
         "action_type": action_norm,
         "action_label": action_type_label(action_norm),
         "gemini_feedback": feedback_text,
         "overall_score_0_to_10": score_norm,
+        "cached": used_cache,
     }
