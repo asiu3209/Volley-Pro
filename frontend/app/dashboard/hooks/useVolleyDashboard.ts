@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { errorMessage } from "@/app/lib/apiErrorMessage";
+import { backendApiUrl } from "@/app/lib/backendUrl";
 import { stripJsonFences } from "@/app/lib/coachingJson";
 import {
   clearPersistedDashboardTips,
@@ -98,8 +99,26 @@ export function useVolleyDashboard() {
       setDashboardTips([]);
       clearPersistedDashboardTips();
       const token = getToken();
-      if (!token) {
+      const authUser = getUser();
+      if (!token || !authUser) {
         router.replace("/login");
+        return;
+      }
+
+      const publicApi = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+      const usingDefaultLocalApi =
+        !publicApi || publicApi === "http://localhost:8000";
+      if (
+        usingDefaultLocalApi &&
+        typeof window !== "undefined" &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1"
+      ) {
+        setAppState({
+          stage: "error",
+          message:
+            "Upload API URL is not configured. Set NEXT_PUBLIC_API_URL on Vercel to your FastAPI base URL (e.g. your Railway URL).",
+        });
         return;
       }
 
@@ -107,16 +126,25 @@ export function useVolleyDashboard() {
       formData.append("file", file);
 
       try {
-        const res = await fetch("/api/uploadVideo", {
+        const res = await fetch(backendApiUrl("videos/upload"), {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-User-Id": authUser.id,
+          },
           body: formData,
         });
-        const data = (await res.json()) as { error?: unknown; preview_frame?: string; video_filename?: string; video_id?: string };
+        const data = (await res.json()) as {
+          detail?: unknown;
+          error?: unknown;
+          preview_frame?: string;
+          video_filename?: string;
+          video_id?: string;
+        };
         if (!res.ok) {
           setAppState({
             stage: "error",
-            message: errorMessage(data.error, "Upload failed."),
+            message: errorMessage(data.error ?? data.detail, "Upload failed."),
           });
           return;
         }
