@@ -34,6 +34,53 @@ ALLOWED_MIME_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-msv
 FRAMES_DIR = os.environ.get("FRAMES_DIR", "frames")
 _READ_CHUNK = 1024 * 1024  # 1 MiB — stream to disk without one huge read()
 
+_EXT_TO_MIME = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".qt": "video/quicktime",
+    ".avi": "video/x-msvideo",
+}
+
+
+def _normalize_content_type(content_type: str | None) -> str | None:
+    if not content_type:
+        return None
+    return content_type.split(";", 1)[0].strip().lower()
+
+
+def _effective_video_mime(filename: str | None, content_type: str | None) -> str | None:
+    """
+    Browsers sometimes send application/octet-stream or MIME with parameters.
+    Fall back to filename extension so OpenCV gets a sensible on-disk container name.
+    """
+    normalized = _normalize_content_type(content_type)
+    if normalized in ALLOWED_MIME_TYPES:
+        return normalized
+    if normalized == "application/octet-stream":
+        name = (filename or "").lower()
+        for ext, mime in _EXT_TO_MIME.items():
+            if name.endswith(ext):
+                return mime
+    name = (filename or "").lower()
+    for ext, mime in _EXT_TO_MIME.items():
+        if name.endswith(ext):
+            return mime
+    return normalized
+
+
+def _suffix_for_container(mime: str | None) -> str:
+    if not mime:
+        return ".mp4"
+    if "webm" in mime:
+        return ".webm"
+    if "quicktime" in mime:
+        return ".mov"
+    if "msvideo" in mime or mime.endswith("/avi"):
+        return ".avi"
+    return ".mp4"
+
 
 def _max_upload_bytes() -> int:
     """Default 48 MiB: keeps headroom on 1 GB Railway instances (Python + OpenCV + SDK)."""
@@ -121,10 +168,16 @@ def _write_preview_with_selection_box(
 
 
 def _receive_upload(file: UploadFile) -> str:
-    if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=415, detail=f"Unsupported type: {file.content_type}")
+    effective = _effective_video_mime(file.filename, file.content_type)
+    if effective not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported type: {file.content_type!r} (effective {effective!r}). "
+            "Use MP4, WebM, MOV, or AVI.",
+        )
+    suffix = _suffix_for_container(effective)
     max_b = _max_upload_bytes()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         total = 0
         while True:
             chunk = file.file.read(_READ_CHUNK)
@@ -196,7 +249,10 @@ def upload_video(file: UploadFile = File(...), x_user_id: Optional[str] = Header
         cap.release()
 
         if not ret:
-            raise HTTPException(status_code=422, detail="Cannot read video.")
+            raise HTTPException(
+                status_code=422,
+                detail="Cannot read video — try re-encoding to H.264 MP4, or a different clip.",
+            )
 
         os.makedirs(FRAMES_DIR, exist_ok=True)
         base = os.path.basename(tmp_path)
@@ -209,9 +265,11 @@ def upload_video(file: UploadFile = File(...), x_user_id: Optional[str] = Header
 
         video_id = str(uuid.uuid4())
 
+        row_user_id = x_user_id if (x_user_id and str(x_user_id).strip()) else _DEMO_USER_ID
+
         supabase.table("video_submissions").insert({
             "id": video_id,
-            "user_id": x_user_id,
+            "user_id": row_user_id,
             "video_url": stored_path,
             "skill_type": "unknown",
             "created_at": datetime.utcnow().isoformat()
