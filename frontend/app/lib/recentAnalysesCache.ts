@@ -118,6 +118,14 @@ export function mergeRecentVideosFromSources(
   );
 }
 
+export function replaceRecentAnalysesCache(entries: VideoEntry[]): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(entries.slice(0, MAX_ENTRIES)),
+  );
+}
+
 export function clearRecentAnalysesCache(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);

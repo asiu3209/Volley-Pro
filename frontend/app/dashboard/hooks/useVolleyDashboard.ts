@@ -19,6 +19,7 @@ import {
   deriveSkillStatsFromVideos,
   mergeRecentVideosFromSources,
   readRecentAnalysesFromCache,
+  replaceRecentAnalysesCache,
 } from "@/app/lib/recentAnalysesCache";
 import { clearAuth, getToken, getUser } from "@/app/lib/auth";
 import type { AuthUser } from "@/app/lib/auth";
@@ -59,6 +60,7 @@ export function useVolleyDashboard() {
         const merged = mergeRecentVideosFromSources(v.videos ?? [], cachedVideos);
         setRecentVideos(merged);
         setSkillStats(deriveSkillStatsFromVideos(merged));
+        replaceRecentAnalysesCache(merged);
       } else {
         setRecentVideos(cachedVideos);
         setSkillStats(deriveSkillStatsFromVideos(cachedVideos));

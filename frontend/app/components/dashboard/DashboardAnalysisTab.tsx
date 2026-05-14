@@ -25,9 +25,9 @@ export default function DashboardAnalysisTab({ recentVideos }: Props) {
           Video analysis history
         </h3>
         <p className="text-sm text-gray-400 mb-6">
-          Same coaching layout as after each analysis — saved on this device. Expand a
-          row to view the report (preview may be missing for older runs after files are
-          removed on the server).
+          Coaching reports are loaded from your account after sign-in; this device also
+          keeps a copy for quick access. Expand a row to view the report (preview may be
+          missing after server files are removed).
         </p>
         {recentVideos.length === 0 ? (
           <p className="text-gray-400 text-sm">
