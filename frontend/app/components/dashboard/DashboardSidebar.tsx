@@ -1,4 +1,7 @@
-import { DASHBOARD_NAV_ITEMS } from "./navConfig";
+import {
+  SHOW_SETTINGS_IN_SIDEBAR,
+  visibleDashboardNavItems,
+} from "./navConfig";
 
 interface Props {
   sidebarOpen: boolean;
@@ -31,7 +34,7 @@ export default function DashboardSidebar({
         />
       </div>
       <nav className="flex-1 px-3">
-        {DASHBOARD_NAV_ITEMS.map((item) => (
+        {visibleDashboardNavItems().map((item) => (
           <button
             key={item.id}
             type="button"
@@ -47,12 +50,14 @@ export default function DashboardSidebar({
         ))}
       </nav>
       <div className="p-3 border-t border-white/10">
-        <button
-          type="button"
-          className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left"
-        >
-          {sidebarOpen && <span>Settings</span>}
-        </button>
+        {SHOW_SETTINGS_IN_SIDEBAR ? (
+          <button
+            type="button"
+            className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left"
+          >
+            {sidebarOpen && <span>Settings</span>}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onLogout}
