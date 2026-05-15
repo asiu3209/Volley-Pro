@@ -17,11 +17,11 @@ export default function DashboardSidebar({
 }: Props) {
   return (
     <div
-      className={`${sidebarOpen ? "w-64" : "w-20"} bg-gradient-to-b from-gray-900 to-gray-600 text-white transition-all duration-300 flex flex-col`}
+      className={`${sidebarOpen ? "w-64" : "w-20"} bg-[#0f1117] border-r border-white/10 text-white transition-all duration-300 flex flex-col`}
     >
       <div className="p-6 flex items-center justify-between">
         {sidebarOpen && (
-          <h1 className="text-orange-600 text-2xl font-bold">VolleyPro</h1>
+          <h1 className="text-white text-2xl font-semibold tracking-tight">VolleyPro</h1>
         )}
         <button
           type="button"
@@ -38,8 +38,8 @@ export default function DashboardSidebar({
             onClick={() => onTabChange(item.id)}
             className={`w-full flex items-center px-4 py-3 rounded-lg mb-2 transition-all ${
               activeTab === item.id
-                ? "bg-gray-700 text-orange-600 shadow-lg"
-                : "hover:bg-white/10"
+                ? "bg-white/10 text-white"
+                : "text-gray-400 hover:text-white hover:bg-white/5"
             }`}
           >
             {sidebarOpen && <span className="font-medium">{item.label}</span>}

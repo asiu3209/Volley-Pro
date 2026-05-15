@@ -33,7 +33,7 @@ export default function DashboardMainTab({
   const hasTips = dashboardTips.length > 0;
 
   return (
-    <div className="p-6 bg-gray-900">
+    <div className="p-6 bg-[#0f1117]">
       <DashboardActivityBanners
         appState={appState}
         onDismissError={onDismissError}

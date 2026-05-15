@@ -30,7 +30,7 @@ export default function LoginForm({
           type="email"
           value={form.email}
           onChange={(e) => onChange({ ...form, email: e.target.value })}
-          className="w-full bg-gray-700 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition"
+          className="w-full bg-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/30 transition"
           required
         />
       </div>
@@ -42,14 +42,14 @@ export default function LoginForm({
           type="password"
           value={form.password}
           onChange={(e) => onChange({ ...form, password: e.target.value })}
-          className="w-full bg-gray-700 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition"
+          className="w-full bg-white/10 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white/30 transition"
           required
         />
       </div>
       <div className="flex items-center justify-end">
         <button
           type="button"
-          className="text-xs text-orange-500 hover:text-orange-400"
+          className="text-xs text-gray-400 hover:text-white"
         >
           Forgot password?
         </button>
@@ -57,7 +57,7 @@ export default function LoginForm({
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-60"
+        className="w-full rounded-full bg-white px-6 py-3 font-medium text-black hover:bg-gray-200 transition-colors disabled:opacity-60"
       >
         {loading ? "Logging in..." : "Log In"}
       </button>
@@ -66,7 +66,7 @@ export default function LoginForm({
         <button
           type="button"
           onClick={onSwitchToSignup}
-          className="text-orange-500 hover:text-orange-400 font-semibold"
+          className="text-white hover:text-gray-200 font-semibold"
         >
           Sign up
         </button>

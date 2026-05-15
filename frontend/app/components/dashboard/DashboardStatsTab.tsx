@@ -8,8 +8,8 @@ interface Props {
 export default function DashboardStatsTab({ skillStats }: Props) {
   return (
     <div className="p-6">
-      <div className="bg-gray-800 rounded-2xl p-6">
-        <h3 className="text-xl font-bold text-gray-100 mb-6">
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <h3 className="text-xl font-bold text-white mb-6">
           Performance Overview
         </h3>
         {skillStats.length === 0 ? (
@@ -19,21 +19,21 @@ export default function DashboardStatsTab({ skillStats }: Props) {
         ) : (
           <div className="space-y-4">
             {skillStats.map((s) => (
-              <div key={s.skill} className="p-4 bg-gray-700 rounded-xl">
+              <div key={s.skill} className="p-4 bg-white/5 border border-white/10 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold text-gray-100">
+                  <h4 className="font-semibold text-white">
                     {formatSkillDisplayName(s.skill)}
                   </h4>
-                  <span className="text-2xl font-bold text-orange-600">
+                  <span className="text-2xl font-bold text-green-400">
                     {s.avg_score.toFixed(1)}/10
                   </span>
                 </div>
-                <p className="text-sm text-gray-200 mb-2">
+                <p className="text-sm text-gray-400 mb-2">
                   {s.attempts} video{s.attempts !== 1 ? "s" : ""} analyzed
                 </p>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-white/10 rounded-full h-2">
                   <div
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full"
+                    className="bg-white h-2 rounded-full"
                     style={{ width: `${(s.avg_score / 10) * 100}%` }}
                   />
                 </div>

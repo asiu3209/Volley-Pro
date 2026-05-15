@@ -6,10 +6,10 @@ interface Props {
 
 export default function AuthLayout({ children }: Props) {
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-orange-500 text-4xl font-bold tracking-tight">
+          <h1 className="text-white text-4xl font-semibold tracking-tight">
             VolleyPro
           </h1>
           <p className="text-gray-400 mt-2 text-sm">
@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: Props) {
         </div>
         {children}
         <p className="text-center text-xs text-gray-600 mt-6">
-          © 2025 VolleyPro. All rights reserved.
+          © 2026 VolleyPro. All rights reserved.
         </p>
       </div>
     </div>
