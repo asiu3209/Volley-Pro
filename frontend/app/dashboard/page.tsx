@@ -33,7 +33,7 @@ export default function VolleyProDashboard() {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-screen bg-[#0f1117]">
       {appState.stage === "selecting" && (
         <PlayerSelector
           previewFramePath={appState.previewFrame}

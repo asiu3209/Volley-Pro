@@ -22,16 +22,16 @@ export default function DashboardHeader({
     DASHBOARD_NAV_ITEMS.find((i) => i.id === activeTab)?.label ?? "Dashboard";
 
   return (
-    <header className="bg-gray-900 shadow-sm p-6 sticky top-0 z-10">
+    <header className="bg-[#0f1117] border-b border-white/10 p-6 sticky top-0 z-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-gray-100">{title}</h2>
-          <p className="text-gray-300 mt-1">Welcome back, {userName}</p>
+          <h2 className="text-3xl font-bold text-white">{title}</h2>
+          <p className="text-gray-400 mt-1">Welcome back, {userName}</p>
         </div>
         <button
           type="button"
           onClick={onOpenUpload}
-          className="rounded-xl bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-500"
+          className="rounded-full bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-500 transition-colors"
         >
           Submit Video
         </button>

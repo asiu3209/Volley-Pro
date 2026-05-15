@@ -8,8 +8,8 @@ export default function DashboardImprovementTips({ tips }: Props) {
   if (tips.length === 0) return null;
 
   return (
-    <div className="bg-gray-800 rounded-2xl p-6">
-      <h3 className="text-xl font-bold text-gray-100 mb-6">
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+      <h3 className="text-xl font-bold text-white mb-6">
         Improvement Tips
       </h3>
       <p className="mb-4 text-xs text-gray-500">From your latest video review.</p>
@@ -17,24 +17,24 @@ export default function DashboardImprovementTips({ tips }: Props) {
         {tips.map((tip) => (
           <div
             key={tip.id}
-            className="p-4 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl border-l-4 border-orange-500"
+            className="p-4 bg-white/5 border border-white/10 rounded-xl"
           >
             <div className="flex items-start justify-between gap-2 mb-2">
-              <h4 className="font-semibold text-gray-100 text-sm">{tip.issue}</h4>
+              <h4 className="font-semibold text-white text-sm">{tip.issue}</h4>
               <span
                 className={`px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${
                   tip.priority === "high"
-                    ? "bg-red-100 text-red-700"
+                    ? "bg-red-500/10 text-red-400"
                     : tip.priority === "medium"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-green-100 text-green-700"
+                      ? "bg-yellow-500/10 text-yellow-400"
+                      : "bg-green-500/10 text-green-400"
                 }`}
               >
                 {tip.priority}
               </span>
             </div>
             {tip.recommendation ? (
-              <p className="text-xs leading-relaxed text-gray-200">
+              <p className="text-xs leading-relaxed text-gray-400">
                 {tip.recommendation}
               </p>
             ) : null}

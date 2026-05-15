@@ -10,15 +10,15 @@ interface Props {
 
 export default function AuthCard({ tab, onTabChange, children }: Props) {
   return (
-    <div className="bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-      <div className="flex border-b border-gray-700">
+    <div className="bg-white/5 border border-white/10 rounded-2xl shadow-lg overflow-hidden">
+      <div className="flex border-b border-white/10">
         <button
           type="button"
           onClick={() => onTabChange("login")}
           className={`flex-1 py-4 text-sm font-semibold transition-colors ${
             tab === "login"
-              ? "text-orange-500 border-b-2 border-orange-500 bg-gray-800"
-              : "text-gray-400 hover:text-gray-200 bg-gray-900/40"
+              ? "text-white border-b-2 border-white bg-transparent"
+              : "text-gray-500 hover:text-gray-300 bg-transparent"
           }`}
         >
           Log In
@@ -28,8 +28,8 @@ export default function AuthCard({ tab, onTabChange, children }: Props) {
           onClick={() => onTabChange("signup")}
           className={`flex-1 py-4 text-sm font-semibold transition-colors ${
             tab === "signup"
-              ? "text-orange-500 border-b-2 border-orange-500 bg-gray-800"
-              : "text-gray-400 hover:text-gray-200 bg-gray-900/40"
+              ? "text-white border-b-2 border-white bg-transparent"
+              : "text-gray-500 hover:text-gray-300 bg-transparent"
           }`}
         >
           Sign Up
