@@ -21,12 +21,14 @@ const PREVIEW_MAX_HEIGHT = 420;
 interface Props {
   previewFramePath: string;
   onConfirm: (bbox: Rect, actionType: string) => void;
+  onBack: () => void;
   onCancel: () => void;
 }
 
 export default function PlayerSelector({
   previewFramePath,
   onConfirm,
+  onBack,
   onCancel,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -248,6 +250,13 @@ export default function PlayerSelector({
             className="rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
           >
             Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+          >
+            Back
           </button>
           <button
             type="button"

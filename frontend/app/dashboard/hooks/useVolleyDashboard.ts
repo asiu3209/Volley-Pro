@@ -96,13 +96,33 @@ export function useVolleyDashboard() {
   }, [router]);
 
   const reset = useCallback(() => {
-    setAppState({ stage: "idle" });
+    setAppState((prev) => {
+      if (prev.stage === "previewing" || prev.stage === "selecting")
+        URL.revokeObjectURL(prev.videoUrl);
+      return { stage: "idle" };
+    });
   }, []);
 
   const openUploadFlow = useCallback(() => {
     reset();
     setUploadOpen(true);
   }, [reset]);
+
+  const handleProceedToSelect = useCallback(() => {
+    setAppState((prev) => {
+      if (prev.stage !== "previewing") return prev;
+      const { videoUrl, previewFrame, videoFilename, videoId } = prev;
+      return { stage: "selecting", videoUrl, previewFrame, videoFilename, videoId };
+    });
+  }, []);
+
+  const handleGoBackToPreview = useCallback(() => {
+    setAppState((prev) => {
+      if (prev.stage !== "selecting") return prev;
+      const { videoUrl, previewFrame, videoFilename, videoId } = prev;
+      return { stage: "previewing", videoUrl, previewFrame, videoFilename, videoId };
+    });
+  }, []);
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -118,18 +138,11 @@ export function useVolleyDashboard() {
       }
 
       const publicApi = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
-      const usingDefaultLocalApi =
-        !publicApi || publicApi === "http://localhost:8000";
-      if (
-        usingDefaultLocalApi &&
-        typeof window !== "undefined" &&
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1"
-      ) {
+      if (!publicApi) {
         setAppState({
           stage: "error",
           message:
-            "Upload API URL is not configured. Set NEXT_PUBLIC_API_URL on Vercel to your FastAPI base URL (e.g. your Railway URL).",
+            "Upload API URL is not configured. Set NEXT_PUBLIC_API_URL to your FastAPI base URL.",
         });
         return;
       }
@@ -162,7 +175,8 @@ export function useVolleyDashboard() {
         }
 
         setAppState({
-          stage: "selecting",
+          stage: "previewing",
+          videoUrl: URL.createObjectURL(file),
           previewFrame: data.preview_frame ?? "",
           videoFilename: data.video_filename ?? "",
           videoId: data.video_id ?? "",
@@ -177,7 +191,8 @@ export function useVolleyDashboard() {
   const handleAnalyzeConfirmed = useCallback(
     async (bbox: Rect, actionType: string) => {
       if (appState.stage !== "selecting") return;
-      const { videoFilename, videoId, previewFrame } = appState;
+      const { videoFilename, videoId, previewFrame, videoUrl } = appState;
+      URL.revokeObjectURL(videoUrl);
       setAppState({ stage: "analyzing" });
       const token = getToken();
       if (!token) {
@@ -291,6 +306,8 @@ export function useVolleyDashboard() {
     reset,
     openUploadFlow,
     handleUpload,
+    handleProceedToSelect,
+    handleGoBackToPreview,
     handleAnalyzeConfirmed,
   };
 }

@@ -19,7 +19,7 @@ allowed_origins = os.environ.get(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://(.*\.vercel\.app|.*\.app\.github\.dev)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

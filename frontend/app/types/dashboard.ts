@@ -34,7 +34,15 @@ export type AppState =
   | { stage: "idle" }
   | { stage: "uploading" }
   | {
+      stage: "previewing";
+      videoUrl: string;
+      previewFrame: string;
+      videoFilename: string;
+      videoId: string;
+    }
+  | {
       stage: "selecting";
+      videoUrl: string;
       previewFrame: string;
       videoFilename: string;
       videoId: string;
