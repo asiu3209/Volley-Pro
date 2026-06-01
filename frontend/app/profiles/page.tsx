@@ -26,7 +26,15 @@ function StatCard({
   );
 }
 
-function SkillBar({ skill, avg, attempts }: { skill: string; avg: number; attempts: number }) {
+function SkillBar({
+  skill,
+  avg,
+  attempts,
+}: {
+  skill: string;
+  avg: number;
+  attempts: number;
+}) {
   const pct = Math.min(100, Math.max(0, (avg / 10) * 100));
   return (
     <div className="space-y-2">
@@ -74,10 +82,12 @@ export default function ProfilePage() {
   if (!profile || !authUser) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#0f1117] px-6 text-center text-white">
-        <p className="text-lg font-medium">We couldn&apos;t load your profile.</p>
+        <p className="text-lg font-medium">
+          We couldn&apos;t load your profile.
+        </p>
         <p className="max-w-md text-sm text-gray-400">
-          Run a video analysis from the dashboard to create your profile automatically,
-          then return here.
+          Run a video analysis from the dashboard to create your profile
+          automatically, then return here.
         </p>
         <Link
           href="/dashboard"
@@ -99,9 +109,10 @@ export default function ProfilePage() {
 
   const topSkill =
     skillStats.length > 0
-      ? skillStats.reduce((best, s) =>
-          s.avg_score > best.avg_score ? s : best,
-        skillStats[0])
+      ? skillStats.reduce(
+          (best, s) => (s.avg_score > best.avg_score ? s : best),
+          skillStats[0],
+        )
       : null;
 
   const recentSlice = recentVideos.slice(0, 6);
@@ -139,8 +150,9 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-2xl font-semibold tracking-tight">{displayName}</h2>
-            <p className="text-gray-400">@{username}</p>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {displayName}
+            </h2>
             <p className="mt-1 truncate text-sm text-gray-500">{email}</p>
             <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -183,7 +195,9 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Profile details */}
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <h3 className="mb-4 text-sm font-semibold text-white">Account details</h3>
+            <h3 className="mb-4 text-sm font-semibold text-white">
+              Account details
+            </h3>
             <dl className="space-y-4 text-sm">
               <div>
                 <dt className="text-gray-500">Position</dt>
@@ -223,7 +237,9 @@ export default function ProfilePage() {
 
           {/* Skill breakdown */}
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <h3 className="mb-4 text-sm font-semibold text-white">Skill breakdown</h3>
+            <h3 className="mb-4 text-sm font-semibold text-white">
+              Skill breakdown
+            </h3>
             {skillStats.length === 0 ? (
               <p className="text-sm text-gray-500">
                 Analyze a clip from the dashboard to see per-skill scores here.
@@ -242,110 +258,6 @@ export default function ProfilePage() {
             )}
           </section>
         </div>
-
-        {/* Latest coaching */}
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h3 className="mb-1 text-sm font-semibold text-white">Latest coaching insight</h3>
-          <p className="mb-4 text-xs text-gray-500">
-            From your most recent analysis
-            {latestAnalysis?.action_label
-              ? ` · ${latestAnalysis.action_label}`
-              : latestAnalysis?.skill_type
-                ? ` · ${formatSkillDisplayName(latestAnalysis.skill_type)}`
-                : ""}
-          </p>
-
-          {!coaching.summary &&
-          coaching.strengths.length === 0 &&
-          coaching.weaknesses.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              Complete a video analysis to see personalized feedback here.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {coaching.summary ? (
-                <p className="text-sm leading-relaxed text-gray-300">
-                  {coaching.summary}
-                </p>
-              ) : null}
-              {coaching.strengths.length > 0 ? (
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-emerald-500/90">
-                    Strengths
-                  </p>
-                  <ul className="space-y-1.5 text-sm text-gray-300">
-                    {coaching.strengths.slice(0, 4).map((s) => (
-                      <li key={s} className="flex gap-2">
-                        <span className="text-emerald-500">+</span>
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {coaching.weaknesses.length > 0 ? (
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-amber-500/90">
-                    Focus areas
-                  </p>
-                  <ul className="space-y-1.5 text-sm text-gray-300">
-                    {coaching.weaknesses.slice(0, 4).map((w) => (
-                      <li key={w} className="flex gap-2">
-                        <span className="text-amber-500">→</span>
-                        <span>{w}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </section>
-
-        {/* Recent analyses */}
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-white">Recent analyses</h3>
-            <Link
-              href="/dashboard"
-              className="text-xs font-medium text-orange-400 hover:text-orange-300"
-            >
-              View all →
-            </Link>
-          </div>
-          {recentSlice.length === 0 ? (
-            <p className="text-sm text-gray-500">No analyses yet.</p>
-          ) : (
-            <ul className="divide-y divide-white/5">
-              {recentSlice.map((v) => (
-                <li
-                  key={v.id}
-                  className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-200">
-                      {v.action_label?.trim() ||
-                        formatSkillDisplayName(v.skill_type)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(v.created_at).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </p>
-                  </div>
-                  {v.ai_score !== null && v.ai_score !== undefined ? (
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-orange-400">
-                      {Number(v.ai_score).toFixed(1)}/10
-                    </span>
-                  ) : (
-                    <span className="shrink-0 text-xs text-gray-500">—</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </main>
     </div>
   );
