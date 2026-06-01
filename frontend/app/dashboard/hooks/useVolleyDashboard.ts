@@ -22,6 +22,7 @@ import {
   replaceRecentAnalysesCache,
 } from "@/app/lib/recentAnalysesCache";
 import { clearAuth, getToken, getUser } from "@/app/lib/auth";
+import { createClient } from "@/app/lib/supabase/client";
 import type { AuthUser } from "@/app/lib/auth";
 import type { Rect } from "@/app/types/dashboard";
 import {
@@ -91,6 +92,7 @@ export function useVolleyDashboard() {
     clearRecentAnalysesCache();
     setDashboardTips([]);
     clearAuth();
+    void createClient()?.auth.signOut();
     router.replace("/login");
     router.refresh();
   }, [router]);

@@ -3,6 +3,9 @@ import type { DashboardNavItem } from "@/app/types/dashboard";
 /** Set to true when the settings tab / panel is ready to ship. */
 export const SHOW_SETTINGS_IN_SIDEBAR = true;
 
+/** Sidebar Settings opens the profile page. */
+export const PROFILE_SETTINGS_PATH = "/profiles";
+
 /** Set to true when the training tab is ready to ship. */
 export const SHOW_TRAINING_IN_SIDEBAR = false;
 

@@ -12,6 +12,7 @@ import SignupForm, {
   type SignupFormState,
 } from "@/app/components/auth/SignupForm";
 import { setAuth } from "@/app/lib/auth";
+import { createClient } from "@/app/lib/supabase/client";
 
 type Tab = "login" | "signup";
 
@@ -53,6 +54,21 @@ export default function AuthPage() {
         return;
       }
       setAuth(data.token, data.user);
+
+      const supabaseSession = data.supabaseSession as
+        | { access_token: string; refresh_token: string }
+        | null
+        | undefined;
+      if (supabaseSession?.access_token && supabaseSession?.refresh_token) {
+        const supabase = createClient();
+        if (supabase) {
+          await supabase.auth.setSession({
+            access_token: supabaseSession.access_token,
+            refresh_token: supabaseSession.refresh_token,
+          });
+        }
+      }
+
       router.push("/dashboard");
     } catch {
       setError("Network error. Please try again.");

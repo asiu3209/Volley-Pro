@@ -32,9 +32,18 @@ export async function POST(request: NextRequest) {
     { expiresIn: "7d" }
   );
 
+  const session = data.session;
+
   return NextResponse.json({
     success: true,
     token: appToken,
     user: { id: user.id, email: user.email, name },
+    // Lets the browser Supabase client share the same session as Supabase Auth (RLS).
+    supabaseSession: session
+      ? {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        }
+      : null,
   });
 }

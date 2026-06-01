@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import {
+  PROFILE_SETTINGS_PATH,
   SHOW_SETTINGS_IN_SIDEBAR,
   visibleDashboardNavItems,
 } from "./navConfig";
@@ -51,12 +54,12 @@ export default function DashboardSidebar({
       </nav>
       <div className="p-3 border-t border-white/10">
         {SHOW_SETTINGS_IN_SIDEBAR ? (
-          <button
-            type="button"
-            className="w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left"
+          <Link
+            href={PROFILE_SETTINGS_PATH}
+            className="block w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left text-gray-400 hover:text-white transition-colors"
           >
-            {sidebarOpen && <span>Settings</span>}
-          </button>
+            {sidebarOpen && <span className="font-medium">Settings</span>}
+          </Link>
         ) : null}
         <button
           type="button"
