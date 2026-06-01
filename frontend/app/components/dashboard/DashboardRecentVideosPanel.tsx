@@ -1,3 +1,4 @@
+import ReferenceSkillThumbnail from "@/app/components/dashboard/ReferenceSkillThumbnail";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { VideoEntry } from "@/app/types/dashboard";
 
@@ -29,10 +30,14 @@ export default function DashboardRecentVideosPanel({
               className="border-l-4 border-white/30 flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl"
             >
               <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/10 rounded-xl shrink-0" />
+                <ReferenceSkillThumbnail
+                  skillType={v.skill_type}
+                  previewFrame={v.preview_frame}
+                />
                 <div>
                   <h4 className="font-semibold text-white">
-                    {formatSkillDisplayName(v.skill_type)}
+                    {v.action_label?.trim() ||
+                      formatSkillDisplayName(v.skill_type)}
                   </h4>
                   <div className="flex items-center space-x-3 mt-1 text-sm text-gray-400">
                     <span>{new Date(v.created_at).toLocaleDateString()}</span>
