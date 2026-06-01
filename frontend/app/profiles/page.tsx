@@ -1,221 +1,352 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
-import { getToken, getUser } from "@/app/lib/auth";
-import { createClient } from "@/app/lib/supabase/client";
+import { formatSkillDisplayName } from "@/app/lib/skillLabels";
+import { resolveDisplayName } from "@/app/lib/profileInsights";
+import { useProfilePage } from "@/app/profiles/hooks/useProfilePage";
 
-export type UserProfile = {
-  id: string;
-  full_name: string | null;
-  username: string | null;
-  position: string | null;
-  skill_level: number | null;
-};
+function StatCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-sm">
+      <p className="text-2xl font-semibold tracking-tight text-white tabular-nums">
+        {value}
+      </p>
+      <p className="mt-1 text-sm text-gray-400">{label}</p>
+      {sub ? <p className="mt-0.5 text-xs text-gray-500">{sub}</p> : null}
+    </div>
+  );
+}
 
-/**
- * Primary: /api/profiles → FastAPI with service role (JWT userId = profiles.id).
- * Fallback: browser Supabase client when a session exists (RLS must allow read).
- */
-async function loadProfileForUser(userId: string): Promise<UserProfile | null> {
-  const token = getToken();
-  if (token) {
-    const res = await fetch("/api/profiles", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { profile: UserProfile | null };
-      if (data.profile) return data.profile;
-    }
-  }
-
-  const supabase = createClient();
-  if (supabase) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-    if (!error && data) return data as UserProfile;
-  }
-
-  return null;
+function SkillBar({ skill, avg, attempts }: { skill: string; avg: number; attempts: number }) {
+  const pct = Math.min(100, Math.max(0, (avg / 10) * 100));
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="font-medium text-gray-200">
+          {formatSkillDisplayName(skill)}
+        </span>
+        <span className="tabular-nums text-orange-400">
+          {avg.toFixed(1)}/10 · {attempts} {attempts === 1 ? "clip" : "clips"}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const token = getToken();
-    const storedUser = getUser();
-    if (!token || !storedUser) {
-      router.replace("/login");
-      return;
-    }
-
-    setAuthUserId(storedUser.id);
-
-    void (async () => {
-      setLoading(true);
-      try {
-        const row = await loadProfileForUser(storedUser.id);
-        setProfile(row);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [router]);
+  const {
+    authUser,
+    profile,
+    userStats,
+    recentVideos,
+    skillStats,
+    coaching,
+    latestAnalysis,
+    loading,
+  } = useProfilePage();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f1117] text-white">
-        Loading profile...
+      <div className="flex min-h-screen items-center justify-center bg-[#0f1117]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500/30 border-t-orange-500" />
+          <p className="text-sm text-gray-400">Loading your profile…</p>
+        </div>
       </div>
     );
   }
 
-  if (!profile) {
+  if (!profile || !authUser) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#0f1117] text-white px-6 text-center">
-        <p className="text-lg font-semibold">No profile found for this user.</p>
-        <p className="text-gray-400 text-sm max-w-lg">
-          In Supabase, confirm a row in <code className="text-gray-300">profiles</code>{" "}
-          where <code className="text-gray-300">id</code> equals your auth user id
-          {authUserId ? (
-            <>
-              {" "}
-              (<span className="text-orange-300 break-all">{authUserId}</span>)
-            </>
-          ) : null}
-          . If ids differ (e.g. profiles linked to a separate{" "}
-          <code className="text-gray-300">users</code> table), align them or use the
-          API path which expects <code className="text-gray-300">profiles.id = auth.users.id</code>.
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#0f1117] px-6 text-center text-white">
+        <p className="text-lg font-medium">We couldn&apos;t load your profile.</p>
+        <p className="max-w-md text-sm text-gray-400">
+          Run a video analysis from the dashboard to create your profile automatically,
+          then return here.
         </p>
         <Link
           href="/dashboard"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500"
+          className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium hover:bg-blue-500"
         >
-          Back to Dashboard
+          Go to Dashboard
         </Link>
       </div>
     );
   }
 
-  const skillLevel = profile.skill_level ?? 0;
-  const skillPercent = (skillLevel / 10) * 100;
-  const displayName = profile.full_name?.trim() || "Player";
+  const displayName = resolveDisplayName(profile.full_name, authUser.name);
   const username = profile.username?.trim() || "player";
+  const email = authUser.email;
+  const skillLevel = profile.skill_level;
+  const hasSkillLevel =
+    skillLevel !== null && skillLevel !== undefined && skillLevel > 0;
+  const skillPercent = hasSkillLevel ? (skillLevel / 10) * 100 : 0;
+
+  const topSkill =
+    skillStats.length > 0
+      ? skillStats.reduce((best, s) =>
+          s.avg_score > best.avg_score ? s : best,
+        skillStats[0])
+      : null;
+
+  const recentSlice = recentVideos.slice(0, 6);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f1117] via-gray-950 to-black text-white relative">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(120,119,198,0.18),transparent)] pointer-events-none" />
+    <div className="min-h-screen bg-[#0f1117] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(249,115,22,0.12),transparent)]" />
 
-      <div className="sticky top-0 z-20 backdrop-blur-md bg-black/60 border-b border-white/10 px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1117]/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-5 py-4">
           <div>
             <Link
               href="/dashboard"
-              className="text-sm text-gray-400 hover:text-white mb-2 inline-block"
+              className="text-xs font-medium text-gray-500 transition hover:text-white"
             >
-              ← Back to Dashboard
+              ← Dashboard
             </Link>
-            <h1 className="text-lg font-bold">{displayName}</h1>
-            <p className="text-gray-400 text-sm">@{username}</p>
-            <div className="mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs">
-              ● Active Athlete
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">
+              Profile &amp; settings
+            </h1>
+          </div>
+        </div>
+      </header>
+
+      <main className="relative mx-auto max-w-4xl px-5 py-8 pb-16">
+        {/* Identity */}
+        <section className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-center">
+          <div className="shrink-0">
+            <div className="rounded-full bg-gradient-to-tr from-orange-500 via-amber-400 to-orange-600 p-[2px]">
+              <img
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0f1117&color=f97316&size=128`}
+                alt=""
+                className="h-20 w-20 rounded-full border-2 border-[#0f1117] sm:h-24 sm:w-24"
+              />
             </div>
           </div>
-
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg bg-white text-black font-semibold text-sm hover:scale-105 transition shrink-0"
-          >
-            Edit Profile
-          </button>
-        </div>
-      </div>
-
-      <div className="flex justify-center px-6 py-10">
-        <div className="w-full max-w-5xl">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-xl">
-              <div className="flex flex-col items-center text-center">
-                <div className="p-[3px] rounded-full bg-gradient-to-tr from-purple-500 via-blue-500 to-pink-500">
-                  <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`}
-                    alt=""
-                    className="w-28 h-28 rounded-full border border-black"
-                  />
-                </div>
-
-                <h2 className="text-xl font-bold mt-4">{displayName}</h2>
-                <p className="text-gray-400">@{username}</p>
-
-                <div className="mt-6 w-full space-y-3">
-                  <div className="bg-black/40 p-3 rounded-xl">
-                    <p className="text-xs text-gray-400 uppercase">Position</p>
-                    <p className="font-semibold">
-                      {profile.position?.trim() || "—"}
-                    </p>
-                  </div>
-
-                  <div className="bg-black/40 p-3 rounded-xl">
-                    <p className="text-xs text-gray-400 uppercase">Skill Level</p>
-                    <p className="font-semibold">{skillLevel}/10</p>
-                    <div className="w-full h-2 bg-gray-700 rounded-full mt-2">
-                      <div
-                        className="h-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
-                        style={{ width: `${skillPercent}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{displayName}</h2>
+            <p className="text-gray-400">@{username}</p>
+            <p className="mt-1 truncate text-sm text-gray-500">{email}</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Active
             </div>
+          </div>
+        </section>
 
-            <div className="lg:col-span-2 space-y-8">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                  { label: "Matches", value: 24 },
-                  { label: "Wins", value: 18 },
-                  { label: "MVPs", value: 6 },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="bg-white/5 border border-white/10 rounded-2xl p-5"
-                  >
-                    <p className="text-gray-400 text-sm">{s.label}</p>
-                    <p className="text-2xl font-bold">{s.value}</p>
+        {/* VolleyPro stats */}
+        <section className="mb-8">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Your VolleyPro stats
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <StatCard
+              label="Videos analyzed"
+              value={String(userStats.total_videos)}
+            />
+            <StatCard
+              label="Average score"
+              value={
+                userStats.total_videos > 0
+                  ? userStats.avg_score.toFixed(1)
+                  : "—"
+              }
+              sub="Across all clips"
+            />
+            <StatCard
+              label="Skills tracked"
+              value={skillStats.length > 0 ? String(skillStats.length) : "—"}
+              sub={
+                topSkill
+                  ? `Strongest: ${formatSkillDisplayName(topSkill.skill)}`
+                  : undefined
+              }
+            />
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Profile details */}
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <h3 className="mb-4 text-sm font-semibold text-white">Account details</h3>
+            <dl className="space-y-4 text-sm">
+              <div>
+                <dt className="text-gray-500">Position</dt>
+                <dd className="mt-0.5 font-medium text-gray-200">
+                  {profile.position?.trim() || "Not set"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Profile skill level</dt>
+                <dd className="mt-0.5 font-medium text-gray-200">
+                  {hasSkillLevel ? `${skillLevel}/10` : "Not set"}
+                </dd>
+                {hasSkillLevel ? (
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
+                      style={{ width: `${skillPercent}%` }}
+                    />
                   </div>
+                ) : null}
+              </div>
+              <div>
+                <dt className="text-gray-500">Member since</dt>
+                <dd className="mt-0.5 font-medium text-gray-200">
+                  {recentVideos.length > 0
+                    ? new Date(
+                        recentVideos[recentVideos.length - 1]!.created_at,
+                      ).toLocaleDateString(undefined, {
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          {/* Skill breakdown */}
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <h3 className="mb-4 text-sm font-semibold text-white">Skill breakdown</h3>
+            {skillStats.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Analyze a clip from the dashboard to see per-skill scores here.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {skillStats.map((s) => (
+                  <SkillBar
+                    key={s.skill}
+                    skill={s.skill}
+                    avg={s.avg_score}
+                    attempts={s.attempts}
+                  />
                 ))}
               </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                <p className="text-xs text-gray-500 uppercase mb-2">Performance</p>
-                <div className="space-y-3 text-gray-300">
-                  <p>🔥 Strong attacking presence at the net</p>
-                  <p>📈 High vertical jump consistency</p>
-                  <p>⚠️ Needs improvement in serve reception</p>
-                  <p>🧠 Excellent court awareness</p>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-white/10 rounded-2xl p-6">
-                <p className="text-xs text-gray-300 uppercase mb-2">AI Coach</p>
-                <p className="text-gray-200">
-                  This athlete shows strong offensive potential. Improving defensive
-                  transition speed will unlock elite-level performance.
-                </p>
-              </div>
-            </div>
-          </div>
+            )}
+          </section>
         </div>
-      </div>
+
+        {/* Latest coaching */}
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h3 className="mb-1 text-sm font-semibold text-white">Latest coaching insight</h3>
+          <p className="mb-4 text-xs text-gray-500">
+            From your most recent analysis
+            {latestAnalysis?.action_label
+              ? ` · ${latestAnalysis.action_label}`
+              : latestAnalysis?.skill_type
+                ? ` · ${formatSkillDisplayName(latestAnalysis.skill_type)}`
+                : ""}
+          </p>
+
+          {!coaching.summary &&
+          coaching.strengths.length === 0 &&
+          coaching.weaknesses.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Complete a video analysis to see personalized feedback here.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {coaching.summary ? (
+                <p className="text-sm leading-relaxed text-gray-300">
+                  {coaching.summary}
+                </p>
+              ) : null}
+              {coaching.strengths.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-emerald-500/90">
+                    Strengths
+                  </p>
+                  <ul className="space-y-1.5 text-sm text-gray-300">
+                    {coaching.strengths.slice(0, 4).map((s) => (
+                      <li key={s} className="flex gap-2">
+                        <span className="text-emerald-500">+</span>
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {coaching.weaknesses.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-amber-500/90">
+                    Focus areas
+                  </p>
+                  <ul className="space-y-1.5 text-sm text-gray-300">
+                    {coaching.weaknesses.slice(0, 4).map((w) => (
+                      <li key={w} className="flex gap-2">
+                        <span className="text-amber-500">→</span>
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </section>
+
+        {/* Recent analyses */}
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-white">Recent analyses</h3>
+            <Link
+              href="/dashboard"
+              className="text-xs font-medium text-orange-400 hover:text-orange-300"
+            >
+              View all →
+            </Link>
+          </div>
+          {recentSlice.length === 0 ? (
+            <p className="text-sm text-gray-500">No analyses yet.</p>
+          ) : (
+            <ul className="divide-y divide-white/5">
+              {recentSlice.map((v) => (
+                <li
+                  key={v.id}
+                  className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-200">
+                      {v.action_label?.trim() ||
+                        formatSkillDisplayName(v.skill_type)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(v.created_at).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  </div>
+                  {v.ai_score !== null && v.ai_score !== undefined ? (
+                    <span className="shrink-0 text-sm font-semibold tabular-nums text-orange-400">
+                      {Number(v.ai_score).toFixed(1)}/10
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-gray-500">—</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
