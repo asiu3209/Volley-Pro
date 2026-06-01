@@ -1,7 +1,7 @@
 import type { DashboardNavItem } from "@/app/types/dashboard";
 
 /** Set to true when the settings tab / panel is ready to ship. */
-export const SHOW_SETTINGS_IN_SIDEBAR = false;
+export const SHOW_SETTINGS_IN_SIDEBAR = true;
 
 /** Set to true when the training tab is ready to ship. */
 export const SHOW_TRAINING_IN_SIDEBAR = false;
