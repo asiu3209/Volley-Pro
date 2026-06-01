@@ -58,7 +58,7 @@ export default function DashboardSidebar({
             href={PROFILE_SETTINGS_PATH}
             className="block w-full px-4 py-3 rounded-lg hover:bg-white/10 text-left text-gray-400 hover:text-white transition-colors"
           >
-            {sidebarOpen && <span className="font-medium">Settings</span>}
+            {sidebarOpen && <span className="font-medium">Profile</span>}
           </Link>
         ) : null}
         <button
