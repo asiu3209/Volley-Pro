@@ -37,8 +37,11 @@ export function useProfiles() {
         });
 
         if (res.ok) {
-          const data = await res.json();
-          setProfiles(data.profiles ?? []);
+          const data = (await res.json()) as {
+            profile?: Profile | null;
+          };
+          const row = data.profile;
+          setProfiles(row ? [row] : []);
         }
       } catch (e) {
         console.error(e);

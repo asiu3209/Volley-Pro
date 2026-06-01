@@ -1,7 +1,23 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+
 from app.db import supabase
 
 router = APIRouter()
+
+
+@router.get("/me")
+def get_profile(user_id: str = Query(...)):
+    res = (
+        supabase.table("profiles")
+        .select("*")
+        .eq("id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if res.data:
+        return {"profile": res.data[0]}
+    return {"profile": None}
+
 
 @router.post("/profiles")
 def create_profile(
