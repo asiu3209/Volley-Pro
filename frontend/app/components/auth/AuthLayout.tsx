@@ -1,25 +1,33 @@
 import type { ReactNode } from "react";
 
+import Navbar from "@/app/components/landing/Navbar";
+
 interface Props {
   children: ReactNode;
 }
 
 export default function AuthLayout({ children }: Props) {
   return (
-    <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-white text-4xl font-semibold tracking-tight">
-            VolleyPro
-          </h1>
-          <p className="text-gray-400 mt-2 text-sm">
-            Track, analyze, and improve your volleyball skills
+    <div className="flex min-h-screen flex-col bg-[#0f1117] text-white">
+      <Navbar active="login" />
+      <div className="flex flex-1 items-center justify-center p-4 py-10">
+        <div className="w-full max-w-md">
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-semibold tracking-tight text-white">
+              Your account
+            </h1>
+            <p className="mt-2 text-sm text-gray-400">
+              Log in or create an account to analyze clips and save reports.
+            </p>
+          </div>
+          {children}
+          <p className="mt-6 text-center text-xs text-gray-600">
+            Prefer to look around first?{" "}
+            <a href="/#features" className="text-gray-400 hover:text-white">
+              See features
+            </a>
           </p>
         </div>
-        {children}
-        <p className="text-center text-xs text-gray-600 mt-6">
-          © 2026 VolleyPro. All rights reserved.
-        </p>
       </div>
     </div>
   );

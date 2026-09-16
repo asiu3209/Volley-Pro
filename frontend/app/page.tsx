@@ -6,7 +6,7 @@ import Footer from "./components/landing/Footer";
 
 export default function LandingPage() {
   return (
-    <main>
+    <main className="min-h-screen bg-[#0f1117] text-white">
       <Navbar />
       <Hero />
       <FeatureGrid />
