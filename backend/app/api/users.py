@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 
 from app.db import supabase
 from app.services.gemini import action_type_label
+from app.services.stats import SKILL_SCORE_COLUMNS, skill_stats_from_rows
 
 router = APIRouter()
 
@@ -22,10 +23,14 @@ def get_stats(user_id: str = Query(...)):
     res = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
     if res.data:
         row = res.data[0]
-        return {
+        out = {
             "total_videos": row.get("total_videos", 0),
             "avg_score": row.get("avg_score", 0.0),
         }
+        for col in SKILL_SCORE_COLUMNS:
+            if col in row and row[col] is not None:
+                out[col] = row[col]
+        return out
     return {"total_videos": 0, "avg_score": 0.0}
 
 
@@ -68,27 +73,10 @@ def get_videos(user_id: str = Query(...)):
 
 @router.get("/skill-stats")
 def get_skill_stats(user_id: str = Query(...)):
-    table = _VIDEO_ANALYSES
     res = (
-        supabase.table(table)
+        supabase.table(_VIDEO_ANALYSES)
         .select("skill_type, ai_score")
         .eq("user_id", user_id)
-        .not_.is_("ai_score", "null")
         .execute()
     )
-    rows = res.data or []
-    grouped: dict[str, list[float]] = {}
-    for row in rows:
-        skill = row.get("skill_type") or "unknown"
-        score = row.get("ai_score")
-        if score is not None:
-            grouped.setdefault(skill, []).append(float(score))
-
-    stats = []
-    for skill, scores in grouped.items():
-        stats.append({
-            "skill": skill,
-            "attempts": len(scores),
-            "avg_score": round(sum(scores) / len(scores), 1),
-        })
-    return {"skill_stats": stats}
+    return {"skill_stats": skill_stats_from_rows(res.data or [])}

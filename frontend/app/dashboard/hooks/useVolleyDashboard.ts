@@ -227,6 +227,8 @@ export function useVolleyDashboard() {
           overall_score_0_to_10?: number;
           action_type?: string | null;
           action_label?: string | null;
+          analysis_id?: string;
+          video_id?: string;
         };
         if (!res.ok) {
           setAppState({
@@ -257,6 +259,11 @@ export function useVolleyDashboard() {
           }
         }
 
+        const analysisId =
+          (typeof data.analysis_id === "string" && data.analysis_id.trim()) ||
+          (typeof data.video_id === "string" && data.video_id.trim()) ||
+          videoId;
+
         setAppState({
           stage: "done",
           previewFrame,
@@ -271,7 +278,7 @@ export function useVolleyDashboard() {
         persistDashboardTips(tips);
 
         appendRecentAnalysisToCache({
-          id: videoId,
+          id: analysisId,
           skill_type: data.action_type ?? actionType ?? null,
           action_label: data.action_label ?? null,
           gemini_feedback: rawFeedback,

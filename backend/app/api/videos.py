@@ -8,7 +8,6 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
 
 import cv2
 import numpy as np
@@ -23,6 +22,7 @@ from app.services.gemini import (
     analyze_video_with_gemini,
     normalize_action_type,
 )
+from app.services.stats import compute_user_stats_payload
 from app.services.video_processing import enable_video_orientation
 
 router = APIRouter()
@@ -260,19 +260,6 @@ def _cache_put_analysis(key: str, feedback_text: str, score_norm: float | None) 
         _ANALYSIS_CACHE[key] = (exp, feedback_text, score_norm)
 
 
-def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-# `normalize_action_type` returns reference keys: blocks, digs, pins, setters, serves
-_ANALYSIS_KEY_TO_STATS_COL = {
-    "serves": "serve_score",
-    "digs": "pass_score",
-    "pins": "spike_score",
-    "setters": "set_score",
-}
-
-
 def _ensure_profile_row(user_id: str) -> None:
     """Ensure profiles.id exists for FKs (video_analyses.user_id, user_stats.user_id)."""
     uid = str(user_id).strip()
@@ -306,68 +293,55 @@ def _feedback_jsonb(feedback_text: str, score_norm: float | None) -> dict:
     }
 
 
-def _insert_video_analysis_row(
+def _upsert_video_analysis_row(
+    analysis_id: str,
     uid: str,
     skill_key: str | None,
-    ai_score: float,
+    ai_score: float | None,
     feedback_text: str,
     score_norm: float | None,
 ) -> None:
+    """Persist analysis using the upload video_id as the canonical row id."""
     row = {
-        "id": str(uuid.uuid4()),
+        "id": analysis_id,
         "user_id": uid,
         "skill_type": skill_key or "unknown",
-        "ai_score": float(ai_score),
+        "ai_score": float(ai_score) if ai_score is not None else None,
         "feedback": _feedback_jsonb(feedback_text, score_norm),
         "model": "gemini-video-full-clip",
     }
-    supabase.table(VIDEO_ANALYSES_TABLE).insert(row).execute()
+    supabase.table(VIDEO_ANALYSES_TABLE).upsert(row, on_conflict="id").execute()
 
 
-def _update_user_stats_row(
-    user_id: str,
-    score_for_stats: float,
-    skill_key: str | None,
-) -> None:
-    skill_col = _ANALYSIS_KEY_TO_STATS_COL.get(skill_key or "")
-    now_iso = _utcnow_iso()
-    stats = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
-    if stats.data:
-        current = stats.data[0]
-        prev_tv = int(current.get("total_videos") or 0)
-        total = prev_tv + 1
-        prev_avg = float(current.get("avg_score") or 0.0)
-        avg = ((prev_avg * prev_tv) + score_for_stats) / total if total else float(score_for_stats)
-        payload: dict = {
-            "total_videos": total,
-            "avg_score": avg,
-            "updated_at": now_iso,
-        }
-        if skill_col and skill_col in current:
-            payload[skill_col] = float(score_for_stats)
-        supabase.table("user_stats").update(payload).eq("user_id", user_id).execute()
-    else:
-        ins: dict = {
-            "user_id": user_id,
-            "avg_score": float(score_for_stats),
-            "total_videos": 1,
-            "updated_at": now_iso,
-        }
-        if skill_col:
-            ins[skill_col] = float(score_for_stats)
-        supabase.table("user_stats").insert(ins).execute()
+def _recompute_user_stats(user_id: str) -> None:
+    """True averages from all video_analyses rows (includes block_score)."""
+    res = (
+        supabase.table(VIDEO_ANALYSES_TABLE)
+        .select("skill_type, ai_score")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    payload = compute_user_stats_payload(user_id, res.data or [])
+    supabase.table("user_stats").upsert(payload, on_conflict="user_id").execute()
 
 
 def _persist_supabase_after_analysis(
+    analysis_id: str,
     uid: str,
     skill_key: str | None,
-    score_for_stats: float,
     feedback_text: str,
     score_norm: float | None,
 ) -> None:
     _ensure_profile_row(uid)
-    _insert_video_analysis_row(uid, skill_key, score_for_stats, feedback_text, score_norm)
-    _update_user_stats_row(uid, score_for_stats, skill_key)
+    _upsert_video_analysis_row(
+        analysis_id,
+        uid,
+        skill_key,
+        score_norm,
+        feedback_text,
+        score_norm,
+    )
+    _recompute_user_stats(uid)
 
 
 def _overall_score_normalized_0_to_10(gemini_text: str) -> float | None:
@@ -436,6 +410,14 @@ def list_action_types():
 
 @router.post("/analyze")
 def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
+    analysis_id = (req.video_id or "").strip()
+    if not analysis_id:
+        raise HTTPException(status_code=422, detail="video_id is required.")
+    try:
+        uuid.UUID(analysis_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="video_id must be a UUID.") from exc
+
     video_fs = os.path.join(FRAMES_DIR, req.video_filename)
     if not os.path.isfile(video_fs):
         raise HTTPException(status_code=404, detail="Video not found. Please upload again.")
@@ -479,8 +461,6 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
             )
             score_norm = _overall_score_normalized_0_to_10(feedback_text)
 
-        score_for_stats = score_norm if score_norm is not None else 8.0
-
         uid = (x_user_id or "").strip() or None
 
         # Persist only on a fresh Gemini run (not a server cache hit), so we do not
@@ -488,19 +468,21 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
         # a successful Supabase write when we have a user id — otherwise a failed insert
         # still caches the result and every later request hits used_cache=True and never
         # retries the DB.
+        # Missing overall_score → ai_score null (never invent 8.0).
         if not used_cache:
             if uid:
                 try:
                     _persist_supabase_after_analysis(
+                        analysis_id,
                         uid,
                         action_norm,
-                        score_for_stats,
                         feedback_text,
                         score_norm,
                     )
                     logger.info(
-                        "Supabase persist after analysis ok user_id=%s table=%s",
+                        "Supabase persist after analysis ok user_id=%s analysis_id=%s table=%s",
                         uid[:8] + "…",
+                        analysis_id,
                         VIDEO_ANALYSES_TABLE,
                     )
                 except Exception as exc:
@@ -539,6 +521,8 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
                     pass
 
     return {
+        "analysis_id": analysis_id,
+        "video_id": analysis_id,
         "action_type": action_norm,
         "action_label": action_type_label(action_norm),
         "gemini_feedback": feedback_text,

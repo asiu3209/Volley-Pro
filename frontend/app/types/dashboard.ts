@@ -8,6 +8,11 @@ export interface Rect {
 export interface UserStats {
   total_videos: number;
   avg_score: number;
+  serve_score?: number;
+  pass_score?: number;
+  spike_score?: number;
+  set_score?: number;
+  block_score?: number;
 }
 
 export interface SkillStat {
