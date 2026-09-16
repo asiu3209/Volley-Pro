@@ -20,6 +20,7 @@ import {
   mergeRecentVideosFromSources,
   readRecentAnalysesFromCache,
   replaceRecentAnalysesCache,
+  upsertRecentVideo,
 } from "@/app/lib/recentAnalysesCache";
 import { clearAuth, getToken, getUser } from "@/app/lib/auth";
 import { createClient } from "@/app/lib/supabase/client";
@@ -277,7 +278,7 @@ export function useVolleyDashboard() {
         setDashboardTips(tips);
         persistDashboardTips(tips);
 
-        appendRecentAnalysisToCache({
+        const entry = {
           id: analysisId,
           skill_type: data.action_type ?? actionType ?? null,
           action_label: data.action_label ?? null,
@@ -285,7 +286,9 @@ export function useVolleyDashboard() {
           preview_frame: previewFrame,
           ai_score: scoreUi,
           created_at: new Date().toISOString(),
-        });
+        };
+        appendRecentAnalysisToCache(entry);
+        setRecentVideos((prev) => upsertRecentVideo(prev, entry));
 
         void fetchUserData(token);
       } catch {
