@@ -20,10 +20,12 @@ REFERENCE_IMAGE_EXT = os.environ["REFERENCE_IMAGE_EXT"].lstrip(".")
 REFERENCE_IMAGE_COUNT = int(os.environ["REFERENCE_IMAGE_COUNT"])
 REFERENCE_IMAGE_CACHE_TTL_SECONDS = int(os.environ["REFERENCE_IMAGE_CACHE_TTL_SECONDS"])
 
+# value → (reference image stem, public / coaching label)
+# Internal key "digs" is kept for storage folders; coach-facing language is Pass.
 _REFERENCE_TYPES: dict[str, tuple[str, str]] = {
     "blocks": ("block", "Block"),
     "digs": ("dig", "Pass"),
-    "pins": ("hit", "Attack"),
+    "pins": ("hit", "Attack (hit)"),
     "setters": ("setter", "Set"),
     "serves": ("serve", "Serve"),
 }
@@ -173,6 +175,19 @@ def _build_video_prompt(
         if action_type
         else "Athlete performs a volleyball skill."
     )
+def _coaching_skill_name(action_type: str | None) -> str | None:
+    """Human-facing skill name for prompts (e.g. digs → Pass)."""
+    return action_type_label(action_type)
+
+
+def _build_video_prompt(action_type: str | None) -> str:
+    skill_label = _coaching_skill_name(action_type)
+    if skill_label:
+        skill = (
+            f"Athlete is doing / repeating volleyball **{skill_label}** in the clip."
+        )
+    else:
+        skill = "Athlete performs a volleyball skill."
     schema_action = (
         f'  "action_type_out": "{action_type}",'
         if action_type
@@ -183,6 +198,17 @@ def _build_video_prompt(
         if kinematics_block and kinematics_block.strip()
         else "\n"
     )
+    pass_terminology = ""
+    if action_type == "digs":
+        pass_terminology = """
+Terminology for this skill (required in ALL coach-facing strings — summary, strengths,
+weaknesses, tips, timeline notes, comparison, final feedback, YouTube reasons):
+- Prefer **pass** / **passing** (platform pass, forearm pass, overhead pass, free ball, etc.).
+- A dig is only one kind of defensive pass. Do **not** call every pass a dig.
+- Only say **dig** when the athlete is clearly digging a hard-driven attack; otherwise say pass/passing.
+- Never write “dig/pass” as a label; say **pass** or **passing**.
+"""
+
     return f"""You are an elite volleyball coach and movement analyst.
 
 AFTER THIS TEXT you receive:
@@ -190,7 +216,7 @@ AFTER THIS TEXT you receive:
 2) The full-length video.
 {kinematics}
 {skill}
-
+{pass_terminology}
 Rules: Evidence only; cite limitations if quality/angle is poor. References (if supplied) are gold-standard examples — do not criticise them.
 
 Score 0–100 overall; breakdown sums reflect posture, footwork, arms/hands, timing, execution.
