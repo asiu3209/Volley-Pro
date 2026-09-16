@@ -22,8 +22,10 @@ from app.services.gemini import (
     analyze_video_with_gemini,
     normalize_action_type,
 )
+from app.services.pose import extract_pose_sequence
 from app.services.stats import compute_user_stats_payload
 from app.services.video_processing import enable_video_orientation
+from app.services.vision_model import predict_from_pose
 
 router = APIRouter()
 
@@ -35,10 +37,15 @@ FRAMES_DIR = os.environ.get("FRAMES_DIR", "frames")
 _READ_CHUNK = 1024 * 1024  # 1 MiB — stream to disk without one huge read()
 
 _ANALYSIS_CACHE_LOCK = threading.Lock()
-# key -> (expires_at_unix, feedback_text, score_norm)
-_ANALYSIS_CACHE: dict[str, tuple[float, str, float | None]] = {}
+# key -> (expires_at_unix, feedback_text, score_norm, vision_dict)
+_ANALYSIS_CACHE: dict[str, tuple[float, str, float | None, dict | None]] = {}
 _ANALYSIS_CACHE_TTL_SEC = float(os.environ.get("VOLLEY_ANALYZE_CACHE_TTL_SEC", "900"))
 _ANALYSIS_CACHE_MAX = max(8, int(os.environ.get("VOLLEY_ANALYZE_CACHE_MAX", "128")))
+_VISION_MODEL_ENABLED = os.environ.get("VISION_MODEL_ENABLED", "1").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 _EXT_TO_MIME = {
     ".mp4": "video/mp4",
@@ -236,20 +243,27 @@ def _analyze_cache_key(
     return f"v1:{st.st_size}:{int(st.st_mtime_ns)}:{bx}:{action_norm or ''}"
 
 
-def _cache_get_analysis(key: str) -> tuple[str, float | None] | None:
+def _cache_get_analysis(
+    key: str,
+) -> tuple[str, float | None, dict | None] | None:
     now = time.time()
     with _ANALYSIS_CACHE_LOCK:
         row = _ANALYSIS_CACHE.get(key)
         if not row:
             return None
-        exp, feedback, score = row
+        exp, feedback, score, vision = row
         if now > exp:
             del _ANALYSIS_CACHE[key]
             return None
-        return feedback, score
+        return feedback, score, vision
 
 
-def _cache_put_analysis(key: str, feedback_text: str, score_norm: float | None) -> None:
+def _cache_put_analysis(
+    key: str,
+    feedback_text: str,
+    score_norm: float | None,
+    vision: dict | None = None,
+) -> None:
     exp = time.time() + _ANALYSIS_CACHE_TTL_SEC
     with _ANALYSIS_CACHE_LOCK:
         while len(_ANALYSIS_CACHE) >= _ANALYSIS_CACHE_MAX:
@@ -257,7 +271,7 @@ def _cache_put_analysis(key: str, feedback_text: str, score_norm: float | None) 
                 del _ANALYSIS_CACHE[next(iter(_ANALYSIS_CACHE))]
             except StopIteration:
                 break
-        _ANALYSIS_CACHE[key] = (exp, feedback_text, score_norm)
+        _ANALYSIS_CACHE[key] = (exp, feedback_text, score_norm, vision)
 
 
 def _ensure_profile_row(user_id: str) -> None:
@@ -275,7 +289,11 @@ def _ensure_profile_row(user_id: str) -> None:
     ).execute()
 
 
-def _feedback_jsonb(feedback_text: str, score_norm: float | None) -> dict:
+def _feedback_jsonb(
+    feedback_text: str,
+    score_norm: float | None,
+    vision: dict | None = None,
+) -> dict:
     try:
         parsed = json.loads(_strip_code_fences(feedback_text))
         if isinstance(parsed, dict):
@@ -283,14 +301,19 @@ def _feedback_jsonb(feedback_text: str, score_norm: float | None) -> dict:
             out.setdefault("model", "gemini-video-full-clip")
             if score_norm is not None:
                 out.setdefault("overall_score_normalized_0_to_10", score_norm)
+            if vision:
+                out["vision_model"] = vision
             return out
     except json.JSONDecodeError:
         pass
-    return {
+    out = {
         "gemini_raw": feedback_text,
         "overall_score_normalized_0_to_10": score_norm,
         "model": "gemini-video-full-clip",
     }
+    if vision:
+        out["vision_model"] = vision
+    return out
 
 
 def _upsert_video_analysis_row(
@@ -300,6 +323,7 @@ def _upsert_video_analysis_row(
     ai_score: float | None,
     feedback_text: str,
     score_norm: float | None,
+    vision: dict | None = None,
 ) -> None:
     """Persist analysis using the upload video_id as the canonical row id."""
     row = {
@@ -307,8 +331,8 @@ def _upsert_video_analysis_row(
         "user_id": uid,
         "skill_type": skill_key or "unknown",
         "ai_score": float(ai_score) if ai_score is not None else None,
-        "feedback": _feedback_jsonb(feedback_text, score_norm),
-        "model": "gemini-video-full-clip",
+        "feedback": _feedback_jsonb(feedback_text, score_norm, vision),
+        "model": "gemini-video-full-clip+pose-v1",
     }
     supabase.table(VIDEO_ANALYSES_TABLE).upsert(row, on_conflict="id").execute()
 
@@ -331,6 +355,7 @@ def _persist_supabase_after_analysis(
     skill_key: str | None,
     feedback_text: str,
     score_norm: float | None,
+    vision: dict | None = None,
 ) -> None:
     _ensure_profile_row(uid)
     _upsert_video_analysis_row(
@@ -340,8 +365,40 @@ def _persist_supabase_after_analysis(
         score_norm,
         feedback_text,
         score_norm,
+        vision,
     )
     _recompute_user_stats(uid)
+
+
+def _run_vision_model(
+    video_fs: str,
+    bbox: tuple[float, float, float, float],
+) -> tuple[dict | None, str | None]:
+    """Pose track + skill/quality model. Returns (vision_dict, kinematics_prompt)."""
+    if not _VISION_MODEL_ENABLED:
+        return None, None
+    try:
+        pose_result = extract_pose_sequence(video_fs, bbox)
+        duration = (
+            pose_result.n_frames_read / max(pose_result.fps, 1.0)
+            if pose_result.n_frames_read
+            else None
+        )
+        pred = predict_from_pose(
+            pose_result.pose_seq,
+            fps=pose_result.fps,
+            duration_hint_s=duration,
+            notes=pose_result.notes,
+        )
+        return pred.to_dict(), pred.to_prompt_block()
+    except Exception as exc:
+        logger.warning("Vision model failed (continuing with Gemini only): %s", exc)
+        return {
+            "tracking_ok": False,
+            "predicted_skill": None,
+            "skill_confidence": 0.0,
+            "notes": [f"vision_error:{type(exc).__name__}"],
+        }, None
 
 
 def _overall_score_normalized_0_to_10(gemini_text: str) -> float | None:
@@ -445,19 +502,23 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
     used_cache = hit is not None
     feedback_text: str
     score_norm: float | None
+    vision_payload: dict | None = None
 
     try:
         if hit:
-            feedback_text, score_norm = hit
+            feedback_text, score_norm, vision_payload = hit
         else:
             try:
                 marked_preview = _write_preview_with_selection_box(preview_fs, bbox)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+            vision_payload, kinematics_block = _run_vision_model(video_fs, bbox)
             feedback_text = analyze_video_with_gemini(
                 video_path=video_fs,
                 preview_image_path=marked_preview,
                 action_type=action_norm,
+                kinematics_block=kinematics_block,
             )
             score_norm = _overall_score_normalized_0_to_10(feedback_text)
 
@@ -478,6 +539,7 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
                         action_norm,
                         feedback_text,
                         score_norm,
+                        vision_payload,
                     )
                     logger.info(
                         "Supabase persist after analysis ok user_id=%s analysis_id=%s table=%s",
@@ -492,12 +554,16 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
                         exc_info=True,
                     )
                 else:
-                    _cache_put_analysis(cache_key, feedback_text, score_norm)
+                    _cache_put_analysis(
+                        cache_key, feedback_text, score_norm, vision_payload
+                    )
             else:
                 logger.warning(
                     "Skipping Supabase persist: missing X-User-Id on /videos/analyze"
                 )
-                _cache_put_analysis(cache_key, feedback_text, score_norm)
+                _cache_put_analysis(
+                    cache_key, feedback_text, score_norm, vision_payload
+                )
         elif uid:
             logger.debug(
                 "Analyze used in-memory cache; Supabase not updated (avoid duplicate rows). "
@@ -527,5 +593,6 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
         "action_label": action_type_label(action_norm),
         "gemini_feedback": feedback_text,
         "overall_score_0_to_10": score_norm,
+        "vision_model": vision_payload,
         "cached": used_cache,
     }

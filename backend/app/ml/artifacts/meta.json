@@ -1,0 +1,62 @@
+{
+  "version": "volley-pose-v1-20260916",
+  "trained_at": "2026-09-16T21:23:05.040336+00:00",
+  "n_per_skill": 500,
+  "seed": 42,
+  "n_train": 2000,
+  "n_test": 500,
+  "skill_labels": [
+    "blocks",
+    "digs",
+    "pins",
+    "setters",
+    "serves"
+  ],
+  "feature_names": [
+    "arm_elev_mean",
+    "arm_elev_max",
+    "arm_elev_std",
+    "elbow_flex_mean",
+    "elbow_flex_max",
+    "elbow_flex_std",
+    "knee_flex_mean",
+    "knee_flex_max",
+    "knee_flex_std",
+    "trunk_lean_mean",
+    "trunk_lean_max",
+    "com_y_range",
+    "com_y_std",
+    "wrist_speed_mean",
+    "wrist_speed_max",
+    "ankle_speed_mean",
+    "ankle_speed_max",
+    "lr_arm_asym",
+    "lr_knee_asym",
+    "t_peak_arm",
+    "t_peak_knee",
+    "t_peak_wrist_speed",
+    "t_peak_com_up",
+    "arm_above_shoulder_frac",
+    "deep_knee_frac",
+    "n_frames_norm"
+  ],
+  "quality_keys": [
+    "body_positioning_posture",
+    "footwork_balance",
+    "arm_hand_technique",
+    "timing_coordination",
+    "overall_execution"
+  ],
+  "metrics": {
+    "skill_accuracy": 0.936,
+    "quality_mae": 3.6410294429894314,
+    "quality_mae_by_dim": {
+      "body_positioning_posture": 3.8554315456929773,
+      "footwork_balance": 3.909305670632976,
+      "arm_hand_technique": 3.9344255363899383,
+      "timing_coordination": 4.021160093209247,
+      "overall_execution": 2.484824369022025
+    }
+  },
+  "data_source": "synthetic_biomechanics_v1"
+}

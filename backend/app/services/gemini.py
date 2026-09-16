@@ -166,6 +166,15 @@ def _upload_video_via_files_api(video_path: str) -> tuple[str, object]:
     raise TimeoutError(f"Video upload not ready within {timeout:.0f}s.")
 
 
+def _build_video_prompt(
+    action_type: str | None,
+    kinematics_block: str | None = None,
+) -> str:
+    skill = (
+        f"Athlete is doing / repeating volleyball **{action_type}** in the clip."
+        if action_type
+        else "Athlete performs a volleyball skill."
+    )
 def _coaching_skill_name(action_type: str | None) -> str | None:
     """Human-facing skill name for prompts (e.g. digs → Pass)."""
     return action_type_label(action_type)
@@ -184,6 +193,11 @@ def _build_video_prompt(action_type: str | None) -> str:
         if action_type
         else '  "action_type_out": "string (inferred skill)",'
     )
+    kinematics = (
+        f"\n{kinematics_block.strip()}\n"
+        if kinematics_block and kinematics_block.strip()
+        else "\n"
+    )
     pass_terminology = ""
     if action_type == "digs":
         pass_terminology = """
@@ -200,7 +214,7 @@ weaknesses, tips, timeline notes, comparison, final feedback, YouTube reasons):
 AFTER THIS TEXT you receive:
 1) A JPEG preview: first frame of the video with a **green box** drawn on it — analyse only **that athlete** everywhere in the clip (match via motion continuity, silhouette, role; never identify them by jersey number, garment text, hair, kit colour, ethnicity, gender, age, or similar in JSON).
 2) The full-length video.
-
+{kinematics}
 {skill}
 {pass_terminology}
 Rules: Evidence only; cite limitations if quality/angle is poor. References (if supplied) are gold-standard examples — do not criticise them.
@@ -263,10 +277,11 @@ def analyze_video_with_gemini(
     video_path: str,
     preview_image_path: str,
     action_type: str | None = None,
+    kinematics_block: str | None = None,
 ) -> str:
     """Full-clip Gemini analysis; preview JPEG has green user selection box."""
     action_type = normalize_action_type(action_type)
-    prompt = _build_video_prompt(action_type)
+    prompt = _build_video_prompt(action_type, kinematics_block=kinematics_block)
 
     if not os.path.isfile(video_path):
         raise FileNotFoundError(f"Video missing: {video_path}")

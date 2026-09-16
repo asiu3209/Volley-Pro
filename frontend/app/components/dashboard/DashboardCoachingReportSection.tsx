@@ -1,4 +1,6 @@
 import { backendAssetUrl } from "@/app/lib/backendUrl";
+import { formatSkillDisplayName } from "@/app/lib/skillLabels";
+import type { VisionModelResult } from "@/app/types/dashboard";
 import DoneCoachingSummary from "./DoneCoachingSummary";
 
 interface Props {
@@ -7,6 +9,7 @@ interface Props {
   overallScore0to10: number | null;
   geminiFeedback: string;
   onNewVideo: () => void;
+  visionModel?: VisionModelResult | null;
   /** Full dashboard header + “New video”; `embedded` hides both for history rows. */
   variant?: "page" | "embedded";
 }
@@ -17,10 +20,12 @@ export default function DashboardCoachingReportSection({
   overallScore0to10,
   geminiFeedback,
   onNewVideo,
+  visionModel,
   variant = "page",
 }: Props) {
   const isEmbedded = variant === "embedded";
   const hasPreview = Boolean(previewFrame?.trim());
+  const poseOk = Boolean(visionModel?.tracking_ok);
 
   return (
     <div className={isEmbedded ? "min-w-0" : "mb-8"}>
@@ -69,6 +74,18 @@ export default function DashboardCoachingReportSection({
                 </span>
               </p>
             )}
+            {poseOk && visionModel?.predicted_skill ? (
+              <p className="mt-3 text-center text-xs text-gray-400">
+                Pose model:{" "}
+                {formatSkillDisplayName(visionModel.predicted_skill)}
+                {typeof visionModel.skill_confidence === "number"
+                  ? ` (${Math.round(visionModel.skill_confidence * 100)}%)`
+                  : ""}
+                {typeof visionModel.overall_quality_0_to_100 === "number"
+                  ? ` · kinematics ~${visionModel.overall_quality_0_to_100.toFixed(0)}/100`
+                  : ""}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
