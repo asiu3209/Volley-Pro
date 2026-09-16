@@ -2,7 +2,7 @@
 
 VolleyPro is a web application for **volleyball technique feedback**. Athletes upload a short clip, select the skill type, and draw a box around the player to analyze. The backend sends the **marked first frame** and **full video** to **Google Gemini**, compares against optional reference imagery, and returns structured coaching output (scores, strengths, weaknesses, timeline notes, and drill-style recommendations).
 
-The default product path is **full-video LLM analysis**—not a hosted training of custom vision models.
+The default product path is **full-video LLM analysis** grounded by a **local pose vision model** (MediaPipe + trained skill/quality heads). Custom vision models are trained via `backend/scripts/train_vision_model.py`.
 
 ---
 
@@ -13,8 +13,8 @@ The default product path is **full-video LLM analysis**—not a hosted training 
 | **Frontend**   | Next.js (App Router), React, TypeScript, Tailwind CSS               |
 | **Backend**    | Python 3, FastAPI, Uvicorn                                          |
 | **Data**       | Supabase (Postgres + auth-aligned tables used in code)              |
-| **AI**         | Google Gemini (`google-genai`), Files API for video where supported |
-| **Video / CV** | OpenCV (preview JPEG + upload handling)                             |
+| **AI**         | Google Gemini (`google-genai`) + local pose vision model (`mediapipe` + sklearn) |
+| **Video / CV** | OpenCV (preview JPEG) + MediaPipe Pose (athlete kinematics)                      |
 
 Typical deployment: **frontend on Vercel**, **API on Railway** (or any container/host with enough RAM for video + SDK). **Video uploads** go **directly** from the browser to `POST /videos/upload` on the API host (`NEXT_PUBLIC_API_URL`), not through Vercel serverless (payload limits).
 
@@ -84,7 +84,17 @@ Optional tuning (see code for defaults):
 - `VOLLEY_ANALYZE_CACHE_TTL_SEC` — in-memory dedupe of identical analyze requests (default `900`)  
 - `VOLLEY_ANALYZE_CACHE_MAX` — max cached analyze entries (default `128`)  
 - `VIDEO_ANALYSES_TABLE` — Postgres table for persisted analyses (default `video_analyses`)  
+- `VISION_MODEL_ENABLED` — run MediaPipe + skill/quality model before Gemini (default `1`)  
+- `VISION_MODEL_DIR` — override path to trained joblib artifacts  
+- `POSE_MAX_FRAMES` — max pose samples per clip (default `48`)  
 
+Train / refresh the local vision model (synthetic biomechanics → sklearn):
+
+```bash
+cd backend
+python scripts/train_vision_model.py --n-per-skill 500
+# artifacts land in app/ml/artifacts/
+```
 Run locally:
 
 ```bash

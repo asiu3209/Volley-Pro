@@ -21,6 +21,18 @@ export interface SkillStat {
   avg_score: number;
 }
 
+export interface VisionModelResult {
+  tracking_ok?: boolean;
+  predicted_skill?: string | null;
+  skill_confidence?: number;
+  overall_quality_0_to_100?: number | null;
+  key_moments?: Array<{
+    approximate_seconds?: number;
+    technical_note?: string;
+  }>;
+  model_version?: string | null;
+}
+
 export interface VideoEntry {
   id: string;
   skill_type: string | null;
@@ -31,6 +43,7 @@ export interface VideoEntry {
   action_label?: string | null;
   /** Preview path for coaching layout (optional; may 404 after server deletes media) */
   preview_frame?: string | null;
+  vision_model?: VisionModelResult | null;
 }
 
 export const EMPTY_STATS: UserStats = { total_videos: 0, avg_score: 0 };
@@ -60,6 +73,7 @@ export type AppState =
       overall_score_0_to_10: number | null;
       action_type: string | null;
       action_label: string | null;
+      vision_model?: VisionModelResult | null;
     }
   | { stage: "error"; message: string };
 

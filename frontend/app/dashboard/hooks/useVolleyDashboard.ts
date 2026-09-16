@@ -230,6 +230,7 @@ export function useVolleyDashboard() {
           action_label?: string | null;
           analysis_id?: string;
           video_id?: string;
+          vision_model?: import("@/app/types/dashboard").VisionModelResult | null;
         };
         if (!res.ok) {
           setAppState({
@@ -272,6 +273,7 @@ export function useVolleyDashboard() {
           overall_score_0_to_10: scoreUi,
           action_type: data.action_type ?? actionType ?? null,
           action_label: data.action_label ?? null,
+          vision_model: data.vision_model ?? null,
         });
 
         const tips = parseImprovementTipsFromGemini(rawFeedback);
@@ -285,6 +287,7 @@ export function useVolleyDashboard() {
           gemini_feedback: rawFeedback,
           preview_frame: previewFrame,
           ai_score: scoreUi,
+          vision_model: data.vision_model ?? null,
           created_at: new Date().toISOString(),
         };
         appendRecentAnalysisToCache(entry);

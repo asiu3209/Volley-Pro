@@ -45,6 +45,7 @@ export default function DashboardMainTab({
           previewFrame={appState.previewFrame}
           overallScore0to10={appState.overall_score_0_to_10}
           geminiFeedback={appState.gemini_feedback}
+          visionModel={appState.vision_model}
           onNewVideo={onNewVideoFromReport}
         />
       )}

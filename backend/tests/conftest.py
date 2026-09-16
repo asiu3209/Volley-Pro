@@ -22,6 +22,8 @@ os.environ.setdefault("REFERENCE_IMAGE_EXT", "png")
 os.environ.setdefault("REFERENCE_IMAGE_COUNT", "1")
 os.environ.setdefault("REFERENCE_IMAGE_CACHE_TTL_SECONDS", "60")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:3001")
+# Keep analyze smoke tests fast/deterministic (pose+MediaPipe optional in unit tests).
+os.environ.setdefault("VISION_MODEL_ENABLED", "0")
 
 
 @pytest.fixture()
