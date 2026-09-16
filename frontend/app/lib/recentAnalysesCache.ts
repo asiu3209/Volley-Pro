@@ -50,23 +50,6 @@ export function deriveSkillStatsFromVideos(videos: VideoEntry[]): SkillStat[] {
   return stats.sort((a, b) => b.attempts - a.attempts);
 }
 
-/**
- * Same analysis often appears twice: localStorage uses the upload `video_id` as `id`,
- * while Supabase assigns a new row UUID. Dedupe by skill + score + a short time bucket,
- * then keep the API row's `id` and merge coaching fields from the device cache.
- */
-function analysisFingerprint(v: VideoEntry): string {
-  const skill = (v.skill_type ?? "").trim().toLowerCase();
-  const t = new Date(v.created_at).getTime();
-  if (Number.isNaN(t)) return `${skill}|invalid|${v.id}`;
-  const bucket = Math.floor(t / 60000);
-  const score =
-    v.ai_score !== null && v.ai_score !== undefined
-      ? (Math.round(Number(v.ai_score) * 100) / 100).toFixed(2)
-      : "null";
-  return `${skill}|${score}|${bucket}`;
-}
-
 function mergeEntryContent(existing: VideoEntry, incoming: VideoEntry): VideoEntry {
   const exL = existing.gemini_feedback?.trim().length ?? 0;
   const inL = incoming.gemini_feedback?.trim().length ?? 0;
@@ -85,35 +68,30 @@ function mergeEntryContent(existing: VideoEntry, incoming: VideoEntry): VideoEnt
   };
 }
 
+/**
+ * Merge by canonical analysis id (upload video_id === video_analyses.id).
+ * API rows win for score/skill/timestamps; cache can fill coaching text / preview.
+ */
 export function mergeRecentVideosFromSources(
   apiVideos: VideoEntry[],
   cached: VideoEntry[],
 ): VideoEntry[] {
-  const byFp = new Map<string, VideoEntry>();
+  const byId = new Map<string, VideoEntry>();
 
   for (const v of apiVideos) {
-    byFp.set(analysisFingerprint(v), { ...v });
+    byId.set(v.id, { ...v });
   }
 
   for (const v of cached) {
-    const fp = analysisFingerprint(v);
-    const existing = byFp.get(fp);
+    const existing = byId.get(v.id);
     if (existing) {
-      byFp.set(fp, mergeEntryContent(existing, v));
+      byId.set(v.id, mergeEntryContent(existing, v));
     } else {
-      byFp.set(fp, { ...v });
+      byId.set(v.id, { ...v });
     }
   }
 
-  const seenId = new Set<string>();
-  const merged: VideoEntry[] = [];
-  for (const v of byFp.values()) {
-    if (seenId.has(v.id)) continue;
-    seenId.add(v.id);
-    merged.push(v);
-  }
-
-  return merged.sort(
+  return [...byId.values()].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }

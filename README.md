@@ -26,8 +26,8 @@ Typical deployment: **frontend on Vercel**, **API on Railway** (or any container
 - Bounding box on preview; server composites a marked JPEG for Gemini
 - Skill/action type selection aligned with reference image sets
 - Full-clip Gemini analysis + JSON-shaped coaching response
-- Dashboard **recent analyses** and **per-skill averages** are stored in the browser (`localStorage`) so the API does not persist each clip to Postgres
-- Dashboard UI for summarized results
+- Dashboard **recent analyses** use a **canonical analysis id** (`video_id` from upload = `video_analyses.id`)
+- Dashboard UI for summarized results; skill averages are true means (null scores are skipped — never defaulted to 8.0)
 
 ---
 
@@ -37,7 +37,10 @@ Typical deployment: **frontend on Vercel**, **API on Railway** (or any container
 volleyPro/
 ├── frontend/          # Next.js app
 ├── backend/           # FastAPI app (Python package `app`)
+│   ├── scripts/       # ops helpers (e.g. frames cleanup)
+│   ├── tests/         # pytest smoke + unit tests
 │   └── railway.toml   # Single-worker deploy hint for small instances
+├── supabase/migrations/
 └── README.md
 ```
 
@@ -57,6 +60,7 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt   # pytest for local/CI
 ```
 
 Create **`backend/.env`** (or export in your host) with at least:
@@ -89,6 +93,26 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Health check: `GET /health`
+
+Apply the `block_score` column in Supabase (once):
+
+```bash
+# SQL in supabase/migrations/20260916_add_block_score.sql
+```
+
+Clean orphaned local media under `frames/`:
+
+```bash
+python scripts/cleanup_frames.py --dir frames
+# or: python scripts/cleanup_frames.py --max-age-hours 24 --dry-run
+```
+
+Run backend tests (upload/analyze smoke + stats):
+
+```bash
+cd backend
+pytest -q
+```
 
 ---
 
@@ -124,10 +148,10 @@ npm run dev
 | ------ | ---------------------- | ------------------------------------------------------------------------------------------- |
 | `POST` | `/videos/upload`       | Multipart video upload; returns `video_id`, `video_filename`, `preview_frame`               |
 | `GET`  | `/videos/action-types` | Skill options for the UI                                                                    |
-| `POST` | `/videos/analyze`      | JSON: video id, filename, preview path, bbox fractions, optional `action_type`              |
-| `GET`  | `/users/stats`         | Query: `user_id` — dashboard aggregates (`user_stats`)                                      |
-| `GET`  | `/users/videos`        | Query: `user_id` — optional legacy list (dashboard prefers browser cache)                   |
-| `GET`  | `/users/skill-stats`   | Query: `user_id` — optional legacy aggregates (dashboard derives skills from browser cache) |
+| `POST` | `/videos/analyze`      | JSON: `video_id` (canonical analysis id), filename, preview, bbox, optional `action_type`; returns `analysis_id` (= `video_id`) |
+| `GET`  | `/users/stats`         | Query: `user_id` — aggregates from `user_stats` (true averages, includes `block_score`)     |
+| `GET`  | `/users/videos`        | Query: `user_id` — recent analyses (`id` matches upload `video_id`)                         |
+| `GET`  | `/users/skill-stats`   | Query: `user_id` — per-skill averages derived from `video_analyses`                         |
 
 Additional routes for user/profile creation live under the same routers in `backend/app/api/` (see FastAPI `/docs` when the server is running).
 
