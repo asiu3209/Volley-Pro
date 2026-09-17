@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { formatScore100, scoreBarPercent } from "@/app/lib/scoreDisplay";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import { resolveDisplayName } from "@/app/lib/profileInsights";
 import { useProfilePage } from "@/app/profiles/hooks/useProfilePage";
@@ -35,7 +36,7 @@ function SkillBar({
   avg: number;
   attempts: number;
 }) {
-  const pct = Math.min(100, Math.max(0, (avg / 10) * 100));
+  const pct = scoreBarPercent(avg);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 text-sm">
@@ -43,7 +44,7 @@ function SkillBar({
           {formatSkillDisplayName(skill)}
         </span>
         <span className="tabular-nums text-orange-400">
-          {avg.toFixed(1)}/10 · {attempts} {attempts === 1 ? "clip" : "clips"}
+          {formatScore100(avg)}/100 · {attempts} {attempts === 1 ? "clip" : "clips"}
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
@@ -175,7 +176,7 @@ export default function ProfilePage() {
               label="Average score"
               value={
                 userStats.total_videos > 0
-                  ? userStats.avg_score.toFixed(1)
+                  ? formatScore100(userStats.avg_score)
                   : "—"
               }
               sub="Across all clips"

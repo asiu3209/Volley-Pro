@@ -1,4 +1,5 @@
 import ReferenceSkillThumbnail from "@/app/components/dashboard/ReferenceSkillThumbnail";
+import { formatScore100 } from "@/app/lib/scoreDisplay";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { VideoEntry } from "@/app/types/dashboard";
 
@@ -48,9 +49,9 @@ export default function DashboardRecentVideosPanel({
                 {v.ai_score !== null ? (
                   <>
                     <div className="text-2xl font-bold text-green-400">
-                      {v.ai_score.toFixed(1)}
+                      {formatScore100(v.ai_score)}
                     </div>
-                    <div className="text-xs text-gray-500">Score</div>
+                    <div className="text-xs text-gray-500">/100</div>
                   </>
                 ) : (
                   <span className="px-3 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-sm">

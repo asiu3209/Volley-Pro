@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import DashboardCoachingReportSection from "@/app/components/dashboard/DashboardCoachingReportSection";
+import { formatScore100 } from "@/app/lib/scoreDisplay";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { VideoEntry } from "@/app/types/dashboard";
 
@@ -62,7 +63,7 @@ export default function DashboardAnalysisTab({ recentVideos }: Props) {
                     <div className="flex items-center gap-3 shrink-0">
                       {v.ai_score !== null && v.ai_score !== undefined ? (
                         <span className="text-lg font-bold text-green-400 tabular-nums">
-                          {v.ai_score.toFixed(1)}/10
+                          {formatScore100(v.ai_score)}/100
                         </span>
                       ) : (
                         <span className="text-sm text-gray-400">—</span>
@@ -81,7 +82,7 @@ export default function DashboardAnalysisTab({ recentVideos }: Props) {
                             formatSkillDisplayName(v.skill_type)
                           }
                           previewFrame={v.preview_frame?.trim() ?? ""}
-                          overallScore0to10={v.ai_score}
+                          overallScore0to100={v.ai_score}
                           geminiFeedback={feedback}
                           onNewVideo={() => {}}
                           variant="embedded"

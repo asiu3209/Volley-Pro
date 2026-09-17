@@ -300,7 +300,7 @@ def _feedback_jsonb(
             out = dict(parsed)
             out.setdefault("model", "gemini-video-full-clip")
             if score_norm is not None:
-                out.setdefault("overall_score_normalized_0_to_10", score_norm)
+                out.setdefault("overall_score_0_to_100", score_norm)
             if vision:
                 out["vision_model"] = vision
             return out
@@ -308,7 +308,7 @@ def _feedback_jsonb(
         pass
     out = {
         "gemini_raw": feedback_text,
-        "overall_score_normalized_0_to_10": score_norm,
+        "overall_score_0_to_100": score_norm,
         "model": "gemini-video-full-clip",
     }
     if vision:
@@ -401,7 +401,7 @@ def _run_vision_model(
         }, None
 
 
-def _overall_score_normalized_0_to_10(gemini_text: str) -> float | None:
+def _overall_score_0_to_100(gemini_text: str) -> float | None:
     try:
         data = json.loads(_strip_code_fences(gemini_text))
     except json.JSONDecodeError:
@@ -413,7 +413,7 @@ def _overall_score_normalized_0_to_10(gemini_text: str) -> float | None:
         v = float(raw)
     except (TypeError, ValueError):
         return None
-    return max(0.0, min(10.0, v / 10.0))
+    return max(0.0, min(100.0, v))
 
 
 @router.post("/upload")
@@ -520,7 +520,7 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
                 action_type=action_norm,
                 kinematics_block=kinematics_block,
             )
-            score_norm = _overall_score_normalized_0_to_10(feedback_text)
+            score_norm = _overall_score_0_to_100(feedback_text)
 
         uid = (x_user_id or "").strip() or None
 
@@ -592,7 +592,7 @@ def analyze_video(req: AnalyzeRequest, x_user_id: Optional[str] = Header(None)):
         "action_type": action_norm,
         "action_label": action_type_label(action_norm),
         "gemini_feedback": feedback_text,
-        "overall_score_0_to_10": score_norm,
+        "overall_score_0_to_100": score_norm,
         "vision_model": vision_payload,
         "cached": used_cache,
     }

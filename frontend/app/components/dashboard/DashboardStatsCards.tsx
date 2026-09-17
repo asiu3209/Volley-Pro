@@ -1,3 +1,4 @@
+import { formatScore100 } from "@/app/lib/scoreDisplay";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { SkillStat, UserStats } from "@/app/types/dashboard";
 
@@ -25,9 +26,9 @@ export default function DashboardStatsCards({ userStats, skillStats }: Props) {
       </div>
       <div className="bg-white/5 border border-white/10 p-6 rounded-2xl">
         <div className="text-3xl font-bold text-white mb-1">
-          {userStats.total_videos > 0 ? userStats.avg_score.toFixed(1) : "—"}
+          {userStats.total_videos > 0 ? formatScore100(userStats.avg_score) : "—"}
         </div>
-        <div className="text-gray-400 text-sm">Average overall score</div>
+        <div className="text-gray-400 text-sm">Average score /100</div>
       </div>
       <div className="bg-white/5 border border-white/10 p-6 rounded-2xl">
         <div className="text-3xl font-bold text-white mb-1">{topSkillLabel}</div>

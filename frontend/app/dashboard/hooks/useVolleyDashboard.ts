@@ -225,7 +225,7 @@ export function useVolleyDashboard() {
           detail?: unknown;
           error?: unknown;
           gemini_feedback?: string;
-          overall_score_0_to_10?: number;
+          overall_score_0_to_100?: number;
           action_type?: string | null;
           action_label?: string | null;
           analysis_id?: string;
@@ -244,17 +244,17 @@ export function useVolleyDashboard() {
           typeof data.gemini_feedback === "string" ? data.gemini_feedback : "";
         let scoreUi: number | null = null;
         if (
-          typeof data.overall_score_0_to_10 === "number" &&
-          Number.isFinite(data.overall_score_0_to_10)
+          typeof data.overall_score_0_to_100 === "number" &&
+          Number.isFinite(data.overall_score_0_to_100)
         ) {
-          scoreUi = data.overall_score_0_to_10;
+          scoreUi = Math.max(0, Math.min(100, data.overall_score_0_to_100));
         } else {
           try {
             const parsed = JSON.parse(stripJsonFences(rawFeedback)) as {
               overall_score?: unknown;
             };
             if (typeof parsed.overall_score === "number") {
-              scoreUi = Math.max(0, Math.min(10, parsed.overall_score / 10));
+              scoreUi = Math.max(0, Math.min(100, parsed.overall_score));
             }
           } catch {
             /* fallback: show raw text only */
@@ -270,7 +270,7 @@ export function useVolleyDashboard() {
           stage: "done",
           previewFrame,
           gemini_feedback: rawFeedback,
-          overall_score_0_to_10: scoreUi,
+          overall_score_0_to_100: scoreUi,
           action_type: data.action_type ?? actionType ?? null,
           action_label: data.action_label ?? null,
           vision_model: data.vision_model ?? null,

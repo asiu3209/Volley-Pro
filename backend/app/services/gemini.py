@@ -171,6 +171,48 @@ def _coaching_skill_name(action_type: str | None) -> str | None:
     return action_type_label(action_type)
 
 
+def _skill_focus_block(action_type: str | None) -> str:
+    """Per-skill coaching metrics Gemini must score (0–100) and explain."""
+    focuses = {
+        "blocks": """
+Skill focus — **Block** (required `skill_metrics`, each score 0–100):
+- block_timing — jump/hands vs attacker contact; early/late/on-time
+- block_quality — seal, penetration over net, hand shape, soft vs tool
+- block_form — load, arm extension, core, landing control
+Also discuss approach to the block if visible.
+""",
+        "setters": """
+Skill focus — **Set** (required `skill_metrics`, each score 0–100):
+- ball_release — hand contact, clean release, spin/control
+- ball_travel — distance/height of the set relative to the intended attack
+- set_placement — location for the hitter (too tight/off net/off target)
+Overall: how well the ball was set for an attackable ball.
+""",
+        "pins": """
+Skill focus — **Attack / hit** (required `skill_metrics`, each score 0–100):
+- player_form — posture, core, arm path, contact shape
+- approach_timing — steps, gather, jump timing vs set
+- swing_and_contact — arm swing prep, contact point, follow-through
+Also note landing balance when visible.
+""",
+        "serves": """
+Skill focus — **Serve** (required `skill_metrics`, each score 0–100):
+- toss_and_form — toss consistency, body alignment, platform/arm prep
+- load_and_timing — weight transfer / approach (float or jump serve) timing
+- contact_and_follow_through — contact height/point, finish, balance
+Treat similarly to attack mechanics where the serve type allows.
+""",
+        "digs": """
+Skill focus — **Pass** (required `skill_metrics`, each score 0–100):
+- pass_form — platform angle, posture, footwork to the ball
+- ball_height — how high / controllable the pass peaked
+- placement_to_target — toward center / setter target vs off-court or tight
+Prefer the words pass/passing (only say dig for a clear hard-driven dig).
+""",
+    }
+    return focuses.get(action_type or "", "").strip()
+
+
 def _build_video_prompt(
     action_type: str | None,
     kinematics_block: str | None = None,
@@ -192,16 +234,15 @@ def _build_video_prompt(
         if kinematics_block and kinematics_block.strip()
         else "\n"
     )
+    skill_focus = _skill_focus_block(action_type)
     pass_terminology = ""
     if action_type == "digs":
         pass_terminology = """
-Terminology for this skill (required in ALL coach-facing strings — summary, strengths,
-weaknesses, tips, timeline notes, comparison, final feedback, YouTube reasons):
-- Prefer **pass** / **passing** (platform pass, forearm pass, overhead pass, free ball, etc.).
-- A dig is only one kind of defensive pass. Do **not** call every pass a dig.
-- Only say **dig** when the athlete is clearly digging a hard-driven attack; otherwise say pass/passing.
-- Never write “dig/pass” as a label; say **pass** or **passing**.
+Terminology: prefer **pass** / **passing**. A dig is only one kind of defensive pass —
+do not call every pass a dig. Only say dig for a clear dig of a hard-driven attack.
 """
+
+    skill_focus_section = f"\n{skill_focus}\n" if skill_focus else ""
 
     return f"""You are an elite volleyball coach and movement analyst.
 
@@ -210,10 +251,10 @@ AFTER THIS TEXT you receive:
 2) The full-length video.
 {kinematics}
 {skill}
-{pass_terminology}
+{pass_terminology}{skill_focus_section}
 Rules: Evidence only; cite limitations if quality/angle is poor. References (if supplied) are gold-standard examples — do not criticise them.
 
-Score 0–100 overall; breakdown sums reflect posture, footwork, arms/hands, timing, execution.
+**Scoring:** overall_score and every skill_metrics[].score and score_breakdown value use **0–100** (integers preferred). Do not use a 0–10 scale.
 
 Respond with **ONLY** valid JSON (no markdown fences). Schema:
 {{
@@ -227,6 +268,15 @@ Respond with **ONLY** valid JSON (no markdown fences). Schema:
     "timing_coordination": 0,
     "overall_execution": 0
   }},
+  "skill_metrics": [
+    {{
+      "key": "metric_id_snake_case",
+      "label": "Human label e.g. Approach timing",
+      "score": 0,
+      "rating": "Excellent | Good | Fair | Needs work",
+      "note": "one short coaching sentence"
+    }}
+  ],
   "analysis_summary": "string",
   "strengths": ["string"],
   "weaknesses": ["string"],
@@ -251,6 +301,8 @@ Respond with **ONLY** valid JSON (no markdown fences). Schema:
   "final_coaching_feedback": "string"
 }}
 
+skill_metrics: include **3 metrics** matching the Skill focus keys for this action (or the closest visible equivalents). rating should match the score band (e.g. 85+ Excellent, 70–84 Good, 55–69 Fair, below 55 Needs work).
+
 timeline_highlights: 3–5 moments for the focal athlete.
 
 youtube_recommendations: 3–5 items fixing main weaknesses.
@@ -265,6 +317,7 @@ YouTube rules:
 - If you do not confidently know a **real** video id from ALLOWED_CHANNELS, **omit that entry** (return fewer recommendations) rather than guessing.
 - Provide a Maximum of 1-2 recommendations. If you cannot find any good recommendations, returning a good search query hyperlink to youtube can be an alternative, but prioritize providing specific recommendations if possible.
 """
+
 
 
 def analyze_video_with_gemini(

@@ -100,7 +100,7 @@ def test_analyze_smoke_canonical_id_and_no_fake_score(
     body = res.json()
     assert body["analysis_id"] == analysis_id
     assert body["video_id"] == analysis_id
-    assert body["overall_score_0_to_10"] is None
+    assert body["overall_score_0_to_100"] is None
     assert body["action_type"] == "blocks"
 
     rows = store["video_analyses"]
@@ -151,8 +151,8 @@ def test_analyze_smoke_with_score_updates_block_average(
         )
 
     assert res.status_code == 200, res.text
-    assert res.json()["overall_score_0_to_10"] == 8.0
+    assert res.json()["overall_score_0_to_100"] == 80.0
     assert store["video_analyses"][0]["id"] == analysis_id
-    assert store["video_analyses"][0]["ai_score"] == 8.0
-    assert store["user_stats"][0]["block_score"] == 8.0
-    assert store["user_stats"][0]["avg_score"] == 8.0
+    assert store["video_analyses"][0]["ai_score"] == 80.0
+    assert store["user_stats"][0]["block_score"] == 80.0
+    assert store["user_stats"][0]["avg_score"] == 80.0
