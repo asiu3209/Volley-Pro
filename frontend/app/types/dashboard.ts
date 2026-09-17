@@ -52,18 +52,14 @@ export type AppState =
   | { stage: "idle" }
   | { stage: "uploading" }
   | {
-      stage: "previewing";
-      videoUrl: string;
-      previewFrame: string;
-      videoFilename: string;
-      videoId: string;
-    }
-  | {
       stage: "selecting";
-      videoUrl: string;
+      /** Local JPEG data URL for instant player selection (no remote wait). */
+      localPreviewUrl: string;
+      /** Server preview path under /frames — set when upload finishes. */
       previewFrame: string;
       videoFilename: string;
       videoId: string;
+      uploadReady: boolean;
     }
   | { stage: "analyzing" }
   | {
