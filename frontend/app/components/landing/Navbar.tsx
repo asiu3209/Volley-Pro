@@ -1,27 +1,36 @@
 import Link from "next/link";
 
-export default function Navbar() {
+type Props = {
+  active?: "login" | null;
+};
+
+export default function Navbar({ active = null }: Props) {
   return (
-    <header className="border-b border-white/10">
+    <header className="border-b border-white/10 bg-[#0f1117]/90 backdrop-blur sticky top-0 z-40">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-        <Link href="/landing" className="text-lg font-semibold tracking-tight">
-          Volley-Pro
+        <Link href="/" className="text-lg font-semibold tracking-tight text-white">
+          VolleyPro
         </Link>
 
         <div className="hidden items-center gap-8 text-sm text-gray-300 md:flex">
-          <a href="#features" className="hover:text-white">
+          <Link href="/#features" className="hover:text-white">
             Features
-          </a>
-          <a href="#how-it-works" className="hover:text-white">
+          </Link>
+          <Link href="/#how-it-works" className="hover:text-white">
             How it works
-          </a>
-          <a href="#demo" className="hover:text-white">
+          </Link>
+          <Link href="/#demo" className="hover:text-white">
             Demo
-          </a>
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm text-gray-300 hover:text-white">
+          <Link
+            href="/login"
+            className={`text-sm hover:text-white ${
+              active === "login" ? "text-white" : "text-gray-300"
+            }`}
+          >
             Login
           </Link>
 

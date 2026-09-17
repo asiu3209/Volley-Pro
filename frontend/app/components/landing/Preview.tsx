@@ -5,7 +5,7 @@ export default function Preview() {
   //replace feedback
   //utube vid
   return (
-    <section id="product-preview" className="mx-auto max-w-7xl px-6 py-16">
+    <section id="how-it-works" className="mx-auto max-w-7xl px-6 py-16">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-sm font-medium text-gray-400">Preview</p>
 

@@ -5,7 +5,7 @@ export default function Footer() {
     <footer className="border-t border-white/10 px-6 py-10">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 md:flex-row md:items-center md:justify-between">
         <div>
-          <Link href="/landing" className="text-lg font-semibold tracking-tight">
+          <Link href="/" className="text-lg font-semibold tracking-tight">
             VolleyPro
           </Link>
 
@@ -25,8 +25,8 @@ export default function Footer() {
             Features
           </a>
 
-          <a href="#product-preview" className="hover:text-white">
-            Product Preview
+          <a href="#how-it-works" className="hover:text-white">
+            How it works
           </a>
 
           <a href="#demo" className="hover:text-white">
