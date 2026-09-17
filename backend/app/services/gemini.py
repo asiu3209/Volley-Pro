@@ -166,21 +166,15 @@ def _upload_video_via_files_api(video_path: str) -> tuple[str, object]:
     raise TimeoutError(f"Video upload not ready within {timeout:.0f}s.")
 
 
-def _build_video_prompt(
-    action_type: str | None,
-    kinematics_block: str | None = None,
-) -> str:
-    skill = (
-        f"Athlete is doing / repeating volleyball **{action_type}** in the clip."
-        if action_type
-        else "Athlete performs a volleyball skill."
-    )
 def _coaching_skill_name(action_type: str | None) -> str | None:
     """Human-facing skill name for prompts (e.g. digs → Pass)."""
     return action_type_label(action_type)
 
 
-def _build_video_prompt(action_type: str | None) -> str:
+def _build_video_prompt(
+    action_type: str | None,
+    kinematics_block: str | None = None,
+) -> str:
     skill_label = _coaching_skill_name(action_type)
     if skill_label:
         skill = (

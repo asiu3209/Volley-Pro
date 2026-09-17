@@ -41,7 +41,7 @@ _ANALYSIS_CACHE_LOCK = threading.Lock()
 _ANALYSIS_CACHE: dict[str, tuple[float, str, float | None, dict | None]] = {}
 _ANALYSIS_CACHE_TTL_SEC = float(os.environ.get("VOLLEY_ANALYZE_CACHE_TTL_SEC", "900"))
 _ANALYSIS_CACHE_MAX = max(8, int(os.environ.get("VOLLEY_ANALYZE_CACHE_MAX", "128")))
-_VISION_MODEL_ENABLED = os.environ.get("VISION_MODEL_ENABLED", "1").lower() in (
+_VISION_MODEL_ENABLED = os.environ.get("VISION_MODEL_ENABLED", "0").lower() in (
     "1",
     "true",
     "yes",
