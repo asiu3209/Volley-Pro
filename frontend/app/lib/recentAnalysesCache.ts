@@ -1,6 +1,6 @@
 import type { SkillStat, VideoEntry } from "@/app/types/dashboard";
 
-const STORAGE_KEY = "vp_recent_analyses_v2";
+const STORAGE_KEY = "vp_recent_analyses_v3";
 const MAX_ENTRIES = 25;
 
 function safeParse(raw: string | null): VideoEntry[] {
@@ -53,37 +53,30 @@ export function deriveSkillStatsFromVideos(videos: VideoEntry[]): SkillStat[] {
     .sort((a, b) => b.attempts - a.attempts);
 }
 
-/** Merge API + local cache by analysis id (upload video_id). Cache can fill coaching text. */
+/** API list is canonical; cache only fills preview/text for matching ids. */
 export function mergeRecentVideosFromSources(
   apiVideos: VideoEntry[],
   cached: VideoEntry[],
 ): VideoEntry[] {
-  const byId = new Map<string, VideoEntry>();
-
-  for (const v of apiVideos) {
-    if (v?.id) byId.set(v.id, { ...v });
-  }
-
-  for (const v of cached) {
-    if (!v?.id) continue;
-    const existing = byId.get(v.id);
-    if (!existing) {
-      byId.set(v.id, { ...v });
-      continue;
-    }
-    byId.set(v.id, {
-      ...existing,
-      gemini_feedback:
-        (v.gemini_feedback?.trim().length ?? 0) >
-        (existing.gemini_feedback?.trim().length ?? 0)
-          ? v.gemini_feedback
-          : existing.gemini_feedback,
-      action_label: existing.action_label?.trim() || v.action_label?.trim() || null,
-      preview_frame: existing.preview_frame?.trim() || v.preview_frame?.trim() || null,
-    });
-  }
-
-  return sortByNewest([...byId.values()]);
+  const cacheById = new Map(cached.filter((v) => v?.id).map((v) => [v.id, v]));
+  return sortByNewest(
+    apiVideos
+      .filter((v) => v?.id)
+      .map((v) => {
+        const c = cacheById.get(v.id);
+        if (!c) return v;
+        return {
+          ...v,
+          gemini_feedback:
+            (v.gemini_feedback?.trim().length ?? 0) > 0
+              ? v.gemini_feedback
+              : c.gemini_feedback,
+          action_label: v.action_label?.trim() || c.action_label?.trim() || null,
+          preview_frame: v.preview_frame?.trim() || c.preview_frame?.trim() || null,
+          vision_model: v.vision_model ?? c.vision_model ?? null,
+        };
+      }),
+  );
 }
 
 export function upsertRecentVideo(
@@ -105,4 +98,5 @@ export function clearRecentAnalysesCache(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem("vp_recent_analyses_v1");
+  localStorage.removeItem("vp_recent_analyses_v2");
 }

@@ -1,4 +1,4 @@
-/** Display helpers for VolleyPro scores on a 0–100 scale. */
+/** Display helpers for VolleyPro scores (Gemini returns 0–100). */
 
 export function clampScore100(score: number | null | undefined): number | null {
   if (score === null || score === undefined || !Number.isFinite(Number(score))) {
@@ -14,7 +14,5 @@ export function formatScore100(score: number | null | undefined): string {
 }
 
 export function scoreBarPercent(score: number | null | undefined): number {
-  const n = clampScore100(score);
-  if (n === null) return 0;
-  return n;
+  return clampScore100(score) ?? 0;
 }

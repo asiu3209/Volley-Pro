@@ -254,13 +254,13 @@ AFTER THIS TEXT you receive:
 {pass_terminology}{skill_focus_section}
 Rules: Evidence only; cite limitations if quality/angle is poor. References (if supplied) are gold-standard examples — do not criticise them.
 
-**Scoring:** overall_score and every skill_metrics[].score and score_breakdown value use **0–100** (integers preferred). Do not use a 0–10 scale.
+**Scoring:** `overall_score`, `skill_metrics[].score`, and `score_breakdown` values are **0–100** (integers preferred). Example: 72, not 7.2.
 
 Respond with **ONLY** valid JSON (no markdown fences). Schema:
 {{
   "identity_note": "neutral tracking explanation; no appearances/numbers",
 {schema_action}
-  "overall_score": 0,
+  "overall_score": 72,
   "score_breakdown": {{
     "body_positioning_posture": 0,
     "footwork_balance": 0,
