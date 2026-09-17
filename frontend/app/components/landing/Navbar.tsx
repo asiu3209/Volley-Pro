@@ -1,14 +1,13 @@
 import Link from "next/link";
 
 type Props = {
-  /** Highlight Login when already on the auth page */
   active?: "login" | null;
 };
 
 export default function Navbar({ active = null }: Props) {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0f1117]/90 backdrop-blur">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <header className="border-b border-white/10 bg-[#0f1117]/90 backdrop-blur sticky top-0 z-40">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
         <Link href="/" className="text-lg font-semibold tracking-tight text-white">
           VolleyPro
         </Link>
