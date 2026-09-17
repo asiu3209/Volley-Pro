@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { errorMessage } from "@/app/lib/apiErrorMessage";
+import { prefetchActionTypes } from "@/app/lib/actionTypesCache";
 import { backendApiUrl } from "@/app/lib/backendUrl";
 import { stripJsonFences } from "@/app/lib/coachingJson";
+import { extractVideoFirstFrame } from "@/app/lib/extractVideoFirstFrame";
 import {
   clearPersistedDashboardTips,
   parseImprovementTipsFromGemini,
@@ -83,6 +85,7 @@ export function useVolleyDashboard() {
     }
     setUser(storedUser);
     void fetchUserData(token);
+    void prefetchActionTypes().catch(() => undefined);
     const cachedTips = readPersistedDashboardTips();
     if (cachedTips.length > 0) {
       setDashboardTips(cachedTips);
@@ -100,33 +103,13 @@ export function useVolleyDashboard() {
   }, [router]);
 
   const reset = useCallback(() => {
-    setAppState((prev) => {
-      if (prev.stage === "previewing" || prev.stage === "selecting")
-        URL.revokeObjectURL(prev.videoUrl);
-      return { stage: "idle" };
-    });
+    setAppState({ stage: "idle" });
   }, []);
 
   const openUploadFlow = useCallback(() => {
     reset();
     setUploadOpen(true);
   }, [reset]);
-
-  const handleProceedToSelect = useCallback(() => {
-    setAppState((prev) => {
-      if (prev.stage !== "previewing") return prev;
-      const { videoUrl, previewFrame, videoFilename, videoId } = prev;
-      return { stage: "selecting", videoUrl, previewFrame, videoFilename, videoId };
-    });
-  }, []);
-
-  const handleGoBackToPreview = useCallback(() => {
-    setAppState((prev) => {
-      if (prev.stage !== "selecting") return prev;
-      const { videoUrl, previewFrame, videoFilename, videoId } = prev;
-      return { stage: "previewing", videoUrl, previewFrame, videoFilename, videoId };
-    });
-  }, []);
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -150,6 +133,28 @@ export function useVolleyDashboard() {
         });
         return;
       }
+
+      let localPreviewUrl: string;
+      try {
+        localPreviewUrl = await extractVideoFirstFrame(file);
+      } catch {
+        setAppState({
+          stage: "error",
+          message:
+            "Could not read a preview frame from this video. Try re-encoding to H.264 MP4.",
+        });
+        return;
+      }
+
+      // Open player selection immediately with a local frame; upload in parallel.
+      setAppState({
+        stage: "selecting",
+        localPreviewUrl,
+        previewFrame: "",
+        videoFilename: "",
+        videoId: "",
+        uploadReady: false,
+      });
 
       const formData = new FormData();
       formData.append("file", file);
@@ -178,12 +183,15 @@ export function useVolleyDashboard() {
           return;
         }
 
-        setAppState({
-          stage: "previewing",
-          videoUrl: URL.createObjectURL(file),
-          previewFrame: data.preview_frame ?? "",
-          videoFilename: data.video_filename ?? "",
-          videoId: data.video_id ?? "",
+        setAppState((prev) => {
+          if (prev.stage !== "selecting") return prev;
+          return {
+            ...prev,
+            previewFrame: data.preview_frame ?? "",
+            videoFilename: data.video_filename ?? "",
+            videoId: data.video_id ?? "",
+            uploadReady: true,
+          };
         });
       } catch {
         setAppState({ stage: "error", message: "Network error during upload." });
@@ -194,9 +202,8 @@ export function useVolleyDashboard() {
 
   const handleAnalyzeConfirmed = useCallback(
     async (bbox: Rect, actionType: string) => {
-      if (appState.stage !== "selecting") return;
-      const { videoFilename, videoId, previewFrame, videoUrl } = appState;
-      URL.revokeObjectURL(videoUrl);
+      if (appState.stage !== "selecting" || !appState.uploadReady) return;
+      const { videoFilename, videoId, previewFrame, localPreviewUrl } = appState;
       setAppState({ stage: "analyzing" });
       const token = getToken();
       if (!token) {
@@ -264,7 +271,7 @@ export function useVolleyDashboard() {
 
         setAppState({
           stage: "done",
-          previewFrame,
+          previewFrame: localPreviewUrl || previewFrame,
           gemini_feedback: rawFeedback,
           overall_score_0_to_100: scoreUi,
           action_type: data.action_type ?? actionType ?? null,
@@ -281,7 +288,7 @@ export function useVolleyDashboard() {
           skill_type: data.action_type ?? actionType ?? null,
           action_label: data.action_label ?? null,
           gemini_feedback: rawFeedback,
-          preview_frame: previewFrame,
+          preview_frame: localPreviewUrl || previewFrame,
           ai_score: scoreUi,
           vision_model: data.vision_model ?? null,
           created_at: new Date().toISOString(),
@@ -317,8 +324,6 @@ export function useVolleyDashboard() {
     reset,
     openUploadFlow,
     handleUpload,
-    handleProceedToSelect,
-    handleGoBackToPreview,
     handleAnalyzeConfirmed,
   };
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import PlayerSelector from "@/app/components/Playerselector";
-import VideoPreviewModal from "@/app/components/VideoPreviewModal";
 import DashboardAnalysisTab from "@/app/components/dashboard/DashboardAnalysisTab";
 import DashboardHeader from "@/app/components/dashboard/DashboardHeader";
 import DashboardMainTab from "@/app/components/dashboard/DashboardMainTab";
@@ -28,8 +27,6 @@ export default function VolleyProDashboard() {
     reset,
     openUploadFlow,
     handleUpload,
-    handleProceedToSelect,
-    handleGoBackToPreview,
     handleAnalyzeConfirmed,
   } = useVolleyDashboard();
 
@@ -37,19 +34,11 @@ export default function VolleyProDashboard() {
 
   return (
     <div className="flex h-screen bg-[#0f1117]">
-      {appState.stage === "previewing" && (
-        <VideoPreviewModal
-          videoUrl={appState.videoUrl}
-          onContinue={handleProceedToSelect}
-          onCancel={reset}
-        />
-      )}
-
       {appState.stage === "selecting" && (
         <PlayerSelector
-          previewFramePath={appState.previewFrame}
+          previewImageSrc={appState.localPreviewUrl}
+          uploadReady={appState.uploadReady}
           onConfirm={handleAnalyzeConfirmed}
-          onBack={handleGoBackToPreview}
           onCancel={reset}
         />
       )}

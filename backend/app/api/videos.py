@@ -446,7 +446,18 @@ def upload_video(file: UploadFile = File(...), x_user_id: Optional[str] = Header
         preview_name = f"preview_{base}.jpg"
         preview_path = os.path.join(FRAMES_DIR, preview_name)
         shutil.move(tmp_path, stored_path)
-        cv2.imwrite(preview_path, first_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+
+        # Downscale for UI / Gemini overlay — full-res phone frames are wasteful.
+        h, w = first_frame.shape[:2]
+        max_edge = int(os.environ.get("VOLLEY_PREVIEW_MAX_EDGE", "1280"))
+        scale = min(1.0, float(max_edge) / float(max(h, w) or 1))
+        if scale < 1.0:
+            first_frame = cv2.resize(
+                first_frame,
+                (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
+                interpolation=cv2.INTER_AREA,
+            )
+        cv2.imwrite(preview_path, first_frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
         del first_frame
 
         video_id = str(uuid.uuid4())
@@ -454,7 +465,8 @@ def upload_video(file: UploadFile = File(...), x_user_id: Optional[str] = Header
         return {
             "video_id": video_id,
             "video_filename": os.path.basename(stored_path),
-            "preview_frame": preview_path,
+            # URL-safe relative path for StaticFiles mount at /frames
+            "preview_frame": f"frames/{preview_name}",
         }
 
     except HTTPException:

@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { backendApiUrl, backendAssetUrl } from "../lib/backendUrl";
 
-export interface ActionTypeOption {
-  value: string;
-  label: string;
-}
+import {
+  getCachedActionTypes,
+  prefetchActionTypes,
+  type ActionTypeOption,
+} from "@/app/lib/actionTypesCache";
 
 interface Rect {
   x: number;
@@ -19,16 +19,17 @@ const PREVIEW_MAX_WIDTH = 640;
 const PREVIEW_MAX_HEIGHT = 420;
 
 interface Props {
-  previewFramePath: string;
+  /** Local data URL or remote URL already resolved by the parent. */
+  previewImageSrc: string;
+  uploadReady: boolean;
   onConfirm: (bbox: Rect, actionType: string) => void;
-  onBack: () => void;
   onCancel: () => void;
 }
 
 export default function PlayerSelector({
-  previewFramePath,
+  previewImageSrc,
+  uploadReady,
   onConfirm,
-  onBack,
   onCancel,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,18 +39,18 @@ export default function PlayerSelector({
 
   const [rect, setRect] = useState<Rect | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [actionOptions, setActionOptions] = useState<ActionTypeOption[]>([]);
-  const [actionType, setActionType] = useState("");
+  const [imageReady, setImageReady] = useState(false);
+  const [actionOptions, setActionOptions] = useState<ActionTypeOption[]>(
+    () => getCachedActionTypes() ?? [],
+  );
+  const [actionType, setActionType] = useState(
+    () => getCachedActionTypes()?.[0]?.value ?? "",
+  );
   const [actionsError, setActionsError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(backendApiUrl("videos/action-types"))
-      .then(async (r) => {
-        if (!r.ok) throw new Error("bad response");
-        return r.json() as Promise<{ action_types: ActionTypeOption[] }>;
-      })
-      .then((d) => {
-        const opts = d.action_types ?? [];
+    prefetchActionTypes()
+      .then((opts) => {
         setActionOptions(opts);
         setActionType((prev) => prev || opts[0]?.value || "");
         setActionsError(null);
@@ -61,10 +62,10 @@ export default function PlayerSelector({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !previewImageSrc) return;
 
+    setImageReady(false);
     const img = new Image();
-    img.src = backendAssetUrl(previewFramePath);
     img.onload = () => {
       imageRef.current = img;
       const scale = Math.min(
@@ -74,17 +75,22 @@ export default function PlayerSelector({
       );
       canvas.width = img.naturalWidth * scale;
       canvas.height = img.naturalHeight * scale;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      setImageReady(true);
     };
-  }, [previewFramePath]);
+    img.onerror = () => setImageReady(false);
+    img.src = previewImageSrc;
+  }, [previewImageSrc]);
 
   const redraw = useCallback((r: Rect | null) => {
     const canvas = canvasRef.current;
     const img = imageRef.current;
     if (!canvas || !img) return;
 
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -167,8 +173,16 @@ export default function PlayerSelector({
   }, [rect, redraw]);
 
   const handleConfirm = () => {
-    if (!rect || rect.w < 0.01 || rect.h < 0.01 || !actionType || actionsError)
+    if (
+      !rect ||
+      rect.w < 0.01 ||
+      rect.h < 0.01 ||
+      !actionType ||
+      actionsError ||
+      !uploadReady
+    ) {
       return;
+    }
     setConfirmed(true);
     onConfirm(rect, actionType);
   };
@@ -178,7 +192,9 @@ export default function PlayerSelector({
     rect.w >= 0.01 &&
     rect.h >= 0.01 &&
     !!actionType &&
-    !actionsError;
+    !actionsError &&
+    uploadReady &&
+    imageReady;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
@@ -187,12 +203,16 @@ export default function PlayerSelector({
           Target player & action
         </h2>
         <p className="mb-4 text-sm text-neutral-400">
-          This still is the <strong className="text-neutral-300">first frame</strong>{" "}
-          of your clip. <strong className="text-neutral-300">Drag a box</strong>{" "}
-          around the athlete to analyze — the server sends this image{" "}
-          <em>with the box drawn</em> to Gemini together with your full video so the
-          model knows exactly which player you mean.
+          Drag a box around the athlete on the first frame. Upload continues in
+          the background — you can select while it finishes.
         </p>
+
+        {!uploadReady && (
+          <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            Uploading clip to the server… you can draw a box now; Analyse unlocks
+            when upload completes.
+          </p>
+        )}
 
         <div className="mb-4">
           <label
@@ -220,10 +240,17 @@ export default function PlayerSelector({
         </div>
 
         <div className="flex justify-center overflow-hidden rounded-lg border border-neutral-700 bg-black">
+          {!imageReady && (
+            <div className="flex h-[200px] w-full items-center justify-center text-sm text-neutral-500">
+              Loading preview…
+            </div>
+          )}
           <canvas
             ref={canvasRef}
-            className="max-h-[420px] max-w-full cursor-crosshair select-none"
-            style={{ display: "block", height: "auto" }}
+            className={`max-h-[420px] max-w-full cursor-crosshair select-none ${
+              imageReady ? "block" : "hidden"
+            }`}
+            style={{ height: "auto" }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -253,18 +280,15 @@ export default function PlayerSelector({
           </button>
           <button
             type="button"
-            onClick={onBack}
-            className="rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
-          >
-            Back
-          </button>
-          <button
-            type="button"
             onClick={handleConfirm}
             disabled={!canSubmit || confirmed}
             className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
           >
-            {confirmed ? "Analysing…" : "Analyse video"}
+            {confirmed
+              ? "Analysing…"
+              : !uploadReady
+                ? "Waiting for upload…"
+                : "Analyse video"}
           </button>
         </div>
       </div>
