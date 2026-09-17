@@ -1,4 +1,5 @@
 import { backendAssetUrl } from "@/app/lib/backendUrl";
+import { formatScore100 } from "@/app/lib/scoreDisplay";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { VisionModelResult } from "@/app/types/dashboard";
 import DoneCoachingSummary from "./DoneCoachingSummary";
@@ -6,7 +7,7 @@ import DoneCoachingSummary from "./DoneCoachingSummary";
 interface Props {
   actionLabel: string | null;
   previewFrame: string;
-  overallScore0to10: number | null;
+  overallScore0to100: number | null;
   geminiFeedback: string;
   onNewVideo: () => void;
   visionModel?: VisionModelResult | null;
@@ -17,7 +18,7 @@ interface Props {
 export default function DashboardCoachingReportSection({
   actionLabel,
   previewFrame,
-  overallScore0to10,
+  overallScore0to100,
   geminiFeedback,
   onNewVideo,
   visionModel,
@@ -26,6 +27,7 @@ export default function DashboardCoachingReportSection({
   const isEmbedded = variant === "embedded";
   const hasPreview = Boolean(previewFrame?.trim());
   const poseOk = Boolean(visionModel?.tracking_ok);
+  const scoreLabel = formatScore100(overallScore0to100);
 
   return (
     <div className={isEmbedded ? "min-w-0" : "mb-8"}>
@@ -66,14 +68,11 @@ export default function DashboardCoachingReportSection({
               alt=""
               className="w-full rounded-lg object-cover"
             />
-            {typeof overallScore0to10 === "number" && (
+            {scoreLabel !== "—" ? (
               <p className="mt-4 text-center text-lg font-semibold text-orange-400">
-                Overall ~{overallScore0to10.toFixed(1)}/10
-                <span className="ml-1 text-xs font-normal text-gray-500">
-                  from model 0–100
-                </span>
+                Form score {scoreLabel}/100
               </p>
-            )}
+            ) : null}
             {poseOk && visionModel?.predicted_skill ? (
               <p className="mt-3 text-center text-xs text-gray-400">
                 Pose model:{" "}

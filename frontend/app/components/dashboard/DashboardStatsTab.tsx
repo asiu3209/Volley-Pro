@@ -1,3 +1,4 @@
+import { formatScore100, scoreBarPercent } from "@/app/lib/scoreDisplay";
 import { formatSkillDisplayName } from "@/app/lib/skillLabels";
 import type { SkillStat } from "@/app/types/dashboard";
 
@@ -25,7 +26,7 @@ export default function DashboardStatsTab({ skillStats }: Props) {
                     {formatSkillDisplayName(s.skill)}
                   </h4>
                   <span className="text-2xl font-bold text-green-400">
-                    {s.avg_score.toFixed(1)}/10
+                    {formatScore100(s.avg_score)}/100
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 mb-2">
@@ -34,7 +35,7 @@ export default function DashboardStatsTab({ skillStats }: Props) {
                 <div className="w-full bg-white/10 rounded-full h-2">
                   <div
                     className="bg-white h-2 rounded-full"
-                    style={{ width: `${(s.avg_score / 10) * 100}%` }}
+                    style={{ width: `${scoreBarPercent(s.avg_score)}%` }}
                   />
                 </div>
               </div>

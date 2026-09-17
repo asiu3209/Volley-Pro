@@ -70,7 +70,8 @@ export type AppState =
       stage: "done";
       previewFrame: string;
       gemini_feedback: string;
-      overall_score_0_to_10: number | null;
+      /** Overall coaching score on 0–100 scale */
+      overall_score_0_to_100: number | null;
       action_type: string | null;
       action_label: string | null;
       vision_model?: VisionModelResult | null;
