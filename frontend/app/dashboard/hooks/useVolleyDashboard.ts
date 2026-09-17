@@ -23,6 +23,7 @@ import {
   upsertRecentVideo,
 } from "@/app/lib/recentAnalysesCache";
 import { clearAuth, getToken, getUser } from "@/app/lib/auth";
+import { clampScore100 } from "@/app/lib/scoreDisplay";
 import { createClient } from "@/app/lib/supabase/client";
 import type { AuthUser } from "@/app/lib/auth";
 import type { Rect } from "@/app/types/dashboard";
@@ -242,22 +243,17 @@ export function useVolleyDashboard() {
 
         const rawFeedback =
           typeof data.gemini_feedback === "string" ? data.gemini_feedback : "";
-        let scoreUi: number | null = null;
-        if (
-          typeof data.overall_score_0_to_100 === "number" &&
-          Number.isFinite(data.overall_score_0_to_100)
-        ) {
-          scoreUi = Math.max(0, Math.min(100, data.overall_score_0_to_100));
-        } else {
+        let scoreUi = clampScore100(data.overall_score_0_to_100);
+        if (scoreUi === null) {
           try {
             const parsed = JSON.parse(stripJsonFences(rawFeedback)) as {
               overall_score?: unknown;
             };
             if (typeof parsed.overall_score === "number") {
-              scoreUi = Math.max(0, Math.min(100, parsed.overall_score));
+              scoreUi = clampScore100(parsed.overall_score);
             }
           } catch {
-            /* fallback: show raw text only */
+            /* show raw text only */
           }
         }
 

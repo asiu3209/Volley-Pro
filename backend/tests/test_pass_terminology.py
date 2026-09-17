@@ -14,6 +14,7 @@ def test_pass_prompt_includes_pass_metrics():
     assert "ball_height" in prompt
     assert "placement_to_target" in prompt
     assert "0–100" in prompt
+    assert '"overall_score": 72' in prompt
     assert "volleyball **digs**" not in prompt
 
 

@@ -402,9 +402,12 @@ def _run_vision_model(
 
 
 def _overall_score_0_to_100(gemini_text: str) -> float | None:
+    """Read Gemini overall_score (already 0–100) and clamp."""
     try:
         data = json.loads(_strip_code_fences(gemini_text))
     except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
         return None
     raw = data.get("overall_score")
     if raw is None:
@@ -412,6 +415,8 @@ def _overall_score_0_to_100(gemini_text: str) -> float | None:
     try:
         v = float(raw)
     except (TypeError, ValueError):
+        return None
+    if v != v:  # NaN
         return None
     return max(0.0, min(100.0, v))
 
